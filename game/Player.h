@@ -242,7 +242,9 @@ public:
 	idScriptBool			AI_STRAFE_LEFT;
 	idScriptBool			AI_STRAFE_RIGHT;
 	idScriptBool			AI_ATTACK_HELD;
+	idScriptBool			AI_ATTACK_HELD_ALT;
 	idScriptBool			AI_WEAPON_FIRED;
+	idScriptBool			AI_WEAPON_FIRED_ALT;
 	idScriptBool			AI_JUMP;
 	idScriptBool			AI_CROUCH;
 	idScriptBool			AI_ONGROUND;
@@ -641,6 +643,7 @@ private:
 
 	void					StopFiring( void );
 	void					FireWeapon( void );
+	void					FireWeaponAlt( void );
 	void					Weapon_Combat( void );
 	void					Weapon_NPC( void );
 	void					Weapon_GUI( void );
@@ -695,6 +698,8 @@ private:
 	void					Event_LevelTrigger( void );
 	void					Event_Gibbed( void );
 	void					Event_GetIdealWeapon( void );
+	void					Event_StartAutoMelee( float dmgMult, int trailNum );
+	void					Event_StopAutoMelee( void );
 };
 
 ID_INLINE bool idPlayer::IsReady( void ) {

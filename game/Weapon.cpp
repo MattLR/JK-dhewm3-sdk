@@ -75,6 +75,8 @@ const idEventDef EV_Weapon_AutoReload( "autoReload", NULL, 'f' );
 const idEventDef EV_Weapon_NetReload( "netReload" );
 const idEventDef EV_Weapon_IsInvisible( "isInvisible", NULL, 'f' );
 const idEventDef EV_Weapon_NetEndReload( "netEndReload" );
+const idEventDef EV_Weapon_StartAutoMelee( "startAutoMelee", "fd" );
+const idEventDef EV_Weapon_StopAutoMelee( "stopAutoMelee" );
 
 //
 // class def
@@ -116,6 +118,8 @@ CLASS_DECLARATION( idAnimatedEntity, idWeapon )
 	EVENT( EV_Weapon_NetReload,					idWeapon::Event_NetReload )
 	EVENT( EV_Weapon_IsInvisible,				idWeapon::Event_IsInvisible )
 	EVENT( EV_Weapon_NetEndReload,				idWeapon::Event_NetEndReload )
+	EVENT( EV_Weapon_StartAutoMelee,			idWeapon::Event_StartAutoMelee )
+	EVENT( EV_Weapon_StopAutoMelee,			    idWeapon::Event_StopAutoMelee )
 END_CLASS
 
 /***********************************************************************
@@ -341,6 +345,11 @@ void idWeapon::Save( idSaveGame *savefile ) const {
 	savefile->WriteJoint( flashJointWorld );
 	savefile->WriteJoint( barrelJointWorld );
 	savefile->WriteJoint( ejectJointWorld );
+	savefile->WriteJoint( meleeJointWorld );
+
+	savefile->WriteBool( autoMeleeEnabled ); 
+	savefile->WriteBool( useMeleeBox );
+	savefile->WriteBounds( meleebox ); 
 
 	savefile->WriteBool( hasBloodSplat );
 
@@ -395,6 +404,7 @@ void idWeapon::Restore( idRestoreGame *savefile ) {
 
 	// Re-link script fields
 	WEAPON_ATTACK.LinkTo(		scriptObject, "WEAPON_ATTACK" );
+	WEAPON_ATTACK_ALT.LinkTo(	scriptObject, "WEAPON_ATTACK_ALT" );
 	WEAPON_RELOAD.LinkTo(		scriptObject, "WEAPON_RELOAD" );
 	WEAPON_NETRELOAD.LinkTo(	scriptObject, "WEAPON_NETRELOAD" );
 	WEAPON_NETENDRELOAD.LinkTo(	scriptObject, "WEAPON_NETENDRELOAD" );
@@ -504,6 +514,11 @@ void idWeapon::Restore( idRestoreGame *savefile ) {
 	savefile->ReadJoint( flashJointWorld );
 	savefile->ReadJoint( barrelJointWorld );
 	savefile->ReadJoint( ejectJointWorld );
+	savefile->ReadJoint( meleeJointWorld );
+
+	savefile->ReadBool( autoMeleeEnabled ); 
+	savefile->ReadBool( useMeleeBox );
+	savefile->ReadBounds( meleebox ); 
 
 	savefile->ReadBool( hasBloodSplat );
 
@@ -561,6 +576,7 @@ void idWeapon::Clear( void ) {
 	scriptObject.Free();
 
 	WEAPON_ATTACK.Unlink();
+	WEAPON_ATTACK_ALT.Unlink();
 	WEAPON_RELOAD.Unlink();
 	WEAPON_NETRELOAD.Unlink();
 	WEAPON_NETENDRELOAD.Unlink();
@@ -694,6 +710,7 @@ void idWeapon::Clear( void ) {
 	barrelJointWorld	= INVALID_JOINT;
 	flashJointWorld		= INVALID_JOINT;
 	ejectJointWorld		= INVALID_JOINT;
+	meleeJointWorld		= INVALID_JOINT;
 
 	hasBloodSplat		= false;
 	nozzleFx			= false;
@@ -719,6 +736,13 @@ void idWeapon::Clear( void ) {
 
 	isLinked			= false;
 	projectileEnt		= NULL;
+	
+	//New Melee Stuff
+	lastMeleeEnt		= NULL; 
+	//isSecFiring			= false; 
+	autoMeleeEnabled	= false;  
+	useMeleeBox			= false;  
+	meleebox.Zero();
 
 	isFiring			= false;
 }
@@ -767,6 +791,14 @@ void idWeapon::InitWorldModel( const idDeclEntityDef *def ) {
 	flashJointWorld = ent->GetAnimator()->GetJointHandle( "flash" );
 	barrelJointWorld = ent->GetAnimator()->GetJointHandle( "muzzle" );
 	ejectJointWorld = ent->GetAnimator()->GetJointHandle( "eject" );
+	meleeJointWorld = ent->GetAnimator()->GetJointHandle( "emitter" );
+
+	meleebox.Zero();
+	float expansion = def->dict.GetFloat( "melee_tracerWidth", "0" ); 
+	if(expansion > 0){
+		useMeleeBox = true;
+		meleebox.ExpandSelf( expansion );
+	}
 }
 
 /*
@@ -861,6 +893,7 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	ejectJointView = animator.GetJointHandle( "eject" );
 	guiLightJointView = animator.GetJointHandle( "guiLight" );
 	ventLightJointView = animator.GetJointHandle( "ventLight" );
+	meleeJointWorld = animator.GetJointHandle( "emitter" );
 
 	// get the projectile
 	projectileDict.Clear();
@@ -1004,6 +1037,7 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	}
 
 	WEAPON_ATTACK.LinkTo(		scriptObject, "WEAPON_ATTACK" );
+	WEAPON_ATTACK_ALT.LinkTo(		scriptObject, "WEAPON_ATTACK_ALT" );
 	WEAPON_RELOAD.LinkTo(		scriptObject, "WEAPON_RELOAD" );
 	WEAPON_NETRELOAD.LinkTo(	scriptObject, "WEAPON_NETRELOAD" );
 	WEAPON_NETENDRELOAD.LinkTo(	scriptObject, "WEAPON_NETENDRELOAD" );
@@ -1428,6 +1462,28 @@ void idWeapon::BeginAttack( void ) {
 
 /*
 ================
+idWeapon::BeginAttackAlt
+================
+*/
+void idWeapon::BeginAttackAlt( void ) {
+	if ( status != WP_OUTOFAMMO ) {
+		lastAttack = gameLocal.time;
+	}
+
+	if ( !isLinked ) {
+		return;
+	}
+
+	if ( !WEAPON_ATTACK_ALT ) {
+		if ( sndHum ) {
+			StopSound( SND_CHANNEL_BODY, false );
+		}
+	}
+	WEAPON_ATTACK_ALT = true;
+}
+
+/*
+================
 idWeapon::EndAttack
 ================
 */
@@ -1437,6 +1493,23 @@ void idWeapon::EndAttack( void ) {
 	}
 	if ( WEAPON_ATTACK ) {
 		WEAPON_ATTACK = false;
+		if ( sndHum ) {
+			StartSoundShader( sndHum, SND_CHANNEL_BODY, 0, false, NULL );
+		}
+	}
+}
+
+/*
+================
+idWeapon::EndAttackAlt
+================
+*/
+void idWeapon::EndAttackAlt( void ) {
+	if ( !WEAPON_ATTACK_ALT.IsLinked() ) {
+		return;
+	}
+	if ( WEAPON_ATTACK_ALT ) {
+		WEAPON_ATTACK_ALT = false;
 		if ( sndHum ) {
 			StartSoundShader( sndHum, SND_CHANNEL_BODY, 0, false, NULL );
 		}
@@ -2013,6 +2086,10 @@ void idWeapon::PresentWeapon( bool showViewModel ) {
 	}
 
 	UpdateSound();
+
+		if ( autoMeleeEnabled && !disabled ) { //not in cinematic
+        EvaluateMelee();
+	}
 }
 
 /*
@@ -2028,6 +2105,7 @@ void idWeapon::EnterCinematic( void ) {
 		thread->Execute();
 
 		WEAPON_ATTACK		= false;
+		WEAPON_ATTACK_ALT	= false;
 		WEAPON_RELOAD		= false;
 		WEAPON_NETRELOAD	= false;
 		WEAPON_NETENDRELOAD	= false;
@@ -2037,6 +2115,7 @@ void idWeapon::EnterCinematic( void ) {
 	}
 
 	disabled = true;
+	autoMeleeEnabled = false;
 
 	LowerWeapon();
 }
@@ -2390,8 +2469,13 @@ void idWeapon::Event_WeaponState( const char *statename, int blendFrames ) {
 
 	if ( !idealState.Icmp( "Fire" ) ) {
 		isFiring = true;
+		isFiringAlt = false;
+	} else if ( !idealState.Icmp( "AltFire" ) ) {
+		isFiring = false;
+		isFiringAlt = true;
 	} else {
 		isFiring = false;
+		isFiringAlt = false;
 	}
 
 	animBlendFrames = blendFrames;
@@ -2986,11 +3070,12 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 	weaponSmokeStartTime = gameLocal.realClientTime;
 }
 
+/* OLD code for reference
 /*
 =====================
 idWeapon::Event_Melee
 =====================
-*/
+
 void idWeapon::Event_Melee( void ) {
 	idEntity	*ent;
 	trace_t		tr;
@@ -3103,6 +3188,250 @@ void idWeapon::Event_Melee( void ) {
 
 	idThread::ReturnInt( 0 );
 	owner->WeaponFireFeedback( &weaponDef->dict );
+}
+*/
+
+/*
+=====================
+idWeapon::StartAutoMelee
+=====================
+*/
+void idWeapon::StartAutoMelee( float dmgMult, int trailNum ) {  
+	if ( g_debugWeapon.GetBool() ) {
+		gameLocal.Printf("idWeapon::StartAutoMelee - dmgMult: %f,trailNum: %d - time:%d\n", dmgMult, trailNum, gameLocal.time);
+	}
+	comboMultiplier = dmgMult;
+	lastMeleeEnt = NULL; //reset it so that can be hit again
+    autoMeleeEnabled = true;
+	nextStrikeFx = gameLocal.time + 100; //delay snd+prt for LOW priority entities after the beginning of the attack
+	nextMeleeSnd = gameLocal.time + 100; //don't play snd on world too early - this could not be used
+	
+	//-- trail --
+	
+	//make sure no trail is started if there is ever started if there is no melee joint
+	if ( meleeJointWorld == INVALID_JOINT ) {
+		return;
+	}
+
+}
+
+/*
+=====================
+idWeapon::StopAutoMelee
+=====================
+*/
+void idWeapon::StopAutoMelee( void ) {
+    comboMultiplier = 1.0f;
+	lastMeleeEnt = NULL; //don't remember it in the future  	
+	autoMeleeEnabled = false;
+	
+	//beam
+}
+
+/*
+=====================
+idWeapon::Event_StartAutoMelee
+=====================
+*/
+void idWeapon::Event_StartAutoMelee( float dmgMult, int trailNum ) {  
+	StartAutoMelee( dmgMult, trailNum );
+}
+
+/*
+=====================
+idWeapon::Event_StopAutoMelee
+=====================
+*/
+void idWeapon::Event_StopAutoMelee( void ) {
+	StopAutoMelee();
+}
+
+/*
+=====================
+idWeapon::Event_Melee
+=====================
+*/
+void idWeapon::Event_Melee( void ) {
+	if( !autoMeleeEnabled && EvaluateMelee() ){ //don't do this if it's already enabled...
+           idThread::ReturnInt( 1 );
+        }else{
+           idThread::ReturnInt( 0 );
+        }
+}
+
+/*
+=====================
+idWeapon::EvaluateMelee
+=====================
+*/
+bool idWeapon::EvaluateMelee( void ) {  
+	idEntity *ent;
+	trace_t tr;
+
+	if ( !meleeDef ) {
+		gameLocal.Error( "No meleeDef on '%s'", weaponDef->dict.GetString( "classname" ) );
+	}
+
+	if ( !gameLocal.isClient ) {
+		idVec3 start;
+		idVec3 end;
+
+		//get origin end axis of the joint "melee" if available
+		if ( meleeJointWorld == INVALID_JOINT ) {
+			//gameLocal.Printf( "idWeapon::EvaluateMelee - Invalid joint 'melee' \n" );
+			start = playerViewOrigin;
+			end = start + playerViewAxis[0] * ( meleeDistance * owner->PowerUpModifier( MELEE_DISTANCE ) );
+		} else { 
+			GetGlobalJointTransform( false , meleeJointWorld, meleeJointOrigin, meleeJointAxis );  //to do: upd this somewhere else?
+			start = meleeJointOrigin;
+			end = start + meleeJointAxis[0] * ( meleeDistance * owner->PowerUpModifier( MELEE_DISTANCE ) );
+			//gameLocal.Printf( "idWeapon::EvaluateMelee - start %f %f %f \n",start[0],start[1],start[2] );
+		}
+
+		if ( useMeleeBox ){
+			gameLocal.clip.TraceBounds( tr, start, end, meleebox, MASK_SHOT_RENDERMODEL, owner ); //ignore player
+		} else {
+			gameLocal.clip.TracePoint( tr, start, end, MASK_SHOT_RENDERMODEL, owner );  //ignore player
+		}
+
+		if ( tr.fraction < 1.0f ) {	
+			ent = gameLocal.entities[ tr.c.entityNum ]; //fix the headshot bug with melee attacks
+			if(( ent ) && !(ent->IsType( idAFAttachment::Type))){ //only if it's not an idAFAttachment
+				ent = gameLocal.GetTraceEntity( tr );
+			}
+		} else {
+			ent = NULL;
+		}
+
+		if ( g_debugWeapon.GetBool() ) {
+			gameRenderWorld->DebugLine( colorYellow, start, end, 100 );
+			if ( useMeleeBox ) {
+				gameRenderWorld->DebugBounds( colorBlue,meleebox, start, 100 );
+				gameRenderWorld->DebugBounds( colorBlue,meleebox, end, 100 );
+			}
+			if ( ent ) {
+				gameRenderWorld->DebugBounds( colorRed, ent->GetPhysics()->GetBounds(), ent->GetPhysics()->GetOrigin(), 100 );
+			}
+		}
+
+		bool hit = false;
+		const char *hitSound = meleeDef->dict.GetString( "snd_miss" );
+
+		if ( ent ) {  //something hit
+			
+			//gameLocal.Printf( "idWeapon::EvaluateMelee - ent = %s \n",ent->GetName());
+
+			if(autoMeleeEnabled &&( ent == lastMeleeEnt)){ //ignore the last entity hit
+				//gameLocal.Printf( "idWeapon::EvaluateMelee - entity ignored\n" );
+				return true; //we hit the same thing again... do nothing now.
+			}
+			//gameLocal.Printf( "idWeapon::EvaluateMelee - ent = %s \n",ent->GetName());
+
+			if ( gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) && ( ent->IsType( idActor::Type ) || ent->IsType( idAFAttachment::Type) ) ) {  //no melee if noweapons = 1?
+				autoMeleeEnabled = false; //make sure
+				return false;
+			}
+
+			// weapon stealing - do this before damaging so weapons are not dropped twice - disabled if autoMeleeEnabled
+			if ( !autoMeleeEnabled
+				&& gameLocal.isMultiplayer
+				&& weaponDef && weaponDef->dict.GetBool( "stealing" )
+				&& ent->IsType( idPlayer::Type )
+				&& !owner->PowerUpActive( BERSERK )
+				&& ( gameLocal.gameType != GAME_TDM || gameLocal.serverInfo.GetBool( "si_teamDamage" ) || ( owner->team != static_cast< idPlayer * >( ent )->team ) )
+				) {
+					owner->StealWeapon( static_cast< idPlayer * >( ent ) );
+			}
+
+			if ( ent->fl.takedamage ) {
+				idVec3 kickDir, globalKickDir;
+				meleeDef->dict.GetVector( "kickDir", "0 0 0", kickDir );
+				globalKickDir = muzzleAxis * kickDir;
+				
+				//Ivan fix - transform clipmodel to joint handle to correctly get the damage zone in idActor::Damage
+				//was: ent->Damage( owner, owner, globalKickDir, meleeDefName, owner->PowerUpModifier( MELEE_DAMAGE ), tr.c.id );
+				ent->Damage( owner, owner, globalKickDir, meleeDefName, (comboMultiplier * owner->PowerUpModifier( MELEE_DAMAGE )) , CLIPMODEL_ID_TO_JOINT_HANDLE( tr.c.id ) );
+				
+				lastMeleeEnt = ent; //remember this to avoid hitting it consecutively
+				hit = true;
+			}
+
+			//push
+			float push = meleeDef->dict.GetFloat( "push" );
+			idVec3 impulse = -push * owner->PowerUpModifier( SPEED ) * tr.c.normal;
+
+			//extra push for AFs
+			if( (ent->health <= 0) && (ent->IsType(idAFEntity_Base::Type)) ){
+				idAFEntity_Base *p = static_cast< idAFEntity_Base * >( ent );
+
+				if ( p->IsActiveAF() ){
+					//gameLocal.Printf( "p->IsActiveAF()\n" );
+					impulse *= meleeDef->dict.GetInt( "pushAFMult","1" );
+					//quinak and dirty fix for flying ragdolls
+					/*
+					if(impulse.z > 70000 ){
+						impulse.z = 70000,
+					}else if( impulse.z < -70000 ){
+						impulse.z = -70000,
+					}
+					*/
+					//gameLocal.Printf( "idWeapon::EvaluateMelee - impulse: %s, lenght: %f\n", impulse.ToString(), impulse.Length() );
+				}
+			}
+			ent->ApplyImpulse( this, tr.c.id, tr.c.point, impulse );
+
+			if ( weaponDef->dict.GetBool( "impact_damage_effect" ) ) {
+				if ( ent->spawnArgs.GetBool( "bleed" ) ) {
+					hitSound = meleeDef->dict.GetString( owner->PowerUpActive( BERSERK ) ? "snd_hit_berserk" : "snd_hit" );
+					ent->AddDamageEffect( tr, impulse, meleeDef->dict.GetString( "classname" ) );
+				}
+				else { 
+					int type = tr.c.material->GetSurfaceType();
+					if ( type == SURFTYPE_NONE ) {
+						type = GetDefaultSurfaceType();
+					}
+					const char *materialType = gameLocal.sufaceTypeNames[ type ];
+
+					// start impact sound based on material type
+					hitSound = meleeDef->dict.GetString( va( "snd_%s", materialType ) );
+					if ( *hitSound == '\0' ) {
+						hitSound = meleeDef->dict.GetString( "snd_metal" );
+					}
+
+					if ( gameLocal.time > nextStrikeFx ) {
+						const char *decal;
+						// project decal
+						decal = weaponDef->dict.GetString( "mtr_strike" );
+						if ( decal && *decal ) {
+							gameLocal.ProjectDecal( tr.c.point, -tr.c.normal, 8.0f, true, 6.0, decal );
+						}
+						nextStrikeFx = gameLocal.time + 200;
+					} else {
+						hitSound = "";
+					}
+
+					strikeSmokeStartTime = gameLocal.time;
+					strikePos = tr.c.point;
+					strikeAxis = -tr.endAxis;
+				}
+			}
+		}
+
+		//always play sound if autoMelee is disabled, otherwise only if (we damaged something ) or (hit something not damaged, as world, and we are beyond the min time)
+		if( (hit) || (ent && gameLocal.time > nextMeleeSnd ) || (!autoMeleeEnabled )) {
+                if ( *hitSound != '\0' ) {
+        			const idSoundShader *snd = declManager->FindSound( hitSound );
+        			StartSoundShader( snd, SND_CHANNEL_BODY2, 0, true, NULL );
+        			nextMeleeSnd = gameLocal.time + 1000;
+        		}
+        }
+
+		if(!autoMeleeEnabled){ owner->WeaponFireFeedback( &weaponDef->dict ); } //autoMeleeEnabled --> no need for feedback
+		return hit;
+	}
+
+	if(!autoMeleeEnabled){ owner->WeaponFireFeedback( &weaponDef->dict ); } //autoMeleeEnabled --> no need for feedback
+	return false;
 }
 
 /*

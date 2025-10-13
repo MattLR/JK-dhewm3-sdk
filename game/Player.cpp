@@ -40,6 +40,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Camera.h"
 #include "Fx.h"
 #include "Misc.h"
+#include "Trigger.h"
 
 const int ASYNC_PLAYER_INV_AMMO_BITS = idMath::BitsForInteger( 999 );	// 9 bits to cover the range [0, 999]
 const int ASYNC_PLAYER_INV_CLIP_BITS = -7;								// -7 bits to cover the range [-1, 60]
@@ -111,6 +112,9 @@ CLASS_DECLARATION( idActor, idPlayer )
 	EVENT( EV_Player_LevelTrigger,			idPlayer::Event_LevelTrigger )
 	EVENT( EV_Gibbed,						idPlayer::Event_Gibbed )
 	EVENT( EV_Player_GetIdealWeapon,		idPlayer::Event_GetIdealWeapon )
+	EVENT( EV_Weapon_StartAutoMelee,		idPlayer::Event_StartAutoMelee )		//proxy for weapon
+	EVENT( EV_Weapon_StopAutoMelee,			idPlayer::Event_StopAutoMelee )			//proxy for weapon
+
 END_CLASS
 
 const int MAX_RESPAWN_TIME = 10000;
@@ -1148,7 +1152,9 @@ void idPlayer::LinkScriptVariables( void ) {
 	AI_STRAFE_LEFT.LinkTo(		scriptObject, "AI_STRAFE_LEFT" );
 	AI_STRAFE_RIGHT.LinkTo(		scriptObject, "AI_STRAFE_RIGHT" );
 	AI_ATTACK_HELD.LinkTo(		scriptObject, "AI_ATTACK_HELD" );
+	AI_ATTACK_HELD_ALT.LinkTo(		scriptObject, "AI_ATTACK_HELD_ALT" );
 	AI_WEAPON_FIRED.LinkTo(		scriptObject, "AI_WEAPON_FIRED" );
+	AI_WEAPON_FIRED_ALT.LinkTo(		scriptObject, "AI_WEAPON_FIRED_ALT" );
 	AI_JUMP.LinkTo(				scriptObject, "AI_JUMP" );
 	AI_DEAD.LinkTo(				scriptObject, "AI_DEAD" );
 	AI_CROUCH.LinkTo(			scriptObject, "AI_CROUCH" );
@@ -1358,7 +1364,9 @@ void idPlayer::Init( void ) {
 	AI_STRAFE_LEFT	= false;
 	AI_STRAFE_RIGHT	= false;
 	AI_ATTACK_HELD	= false;
+	AI_ATTACK_HELD_ALT	= false;
 	AI_WEAPON_FIRED	= false;
+	AI_WEAPON_FIRED_ALT	= false;
 	AI_JUMP			= false;
 	AI_DEAD			= false;
 	AI_CROUCH		= false;
@@ -2669,6 +2677,7 @@ void idPlayer::EnterCinematic( void ) {
 	AI_RUN			= false;
 	AI_ATTACK_HELD	= false;
 	AI_WEAPON_FIRED	= false;
+	AI_WEAPON_FIRED_ALT	= false;
 	AI_JUMP			= false;
 	AI_CROUCH		= false;
 	AI_ONGROUND		= true;
@@ -2753,7 +2762,13 @@ void idPlayer::WeaponFireFeedback( const idDict *weaponDef ) {
 	blink_time = 0;
 
 	// play the fire animation
-	AI_WEAPON_FIRED = true;
+	//AI_WEAPON_FIRED = true;
+
+	//if(weapon.GetEntity()->GetIsFiring() ){ //pri
+	//	AI_WEAPON_FIRED = true;
+	//} else if (weapon.GetEntity()->GetIsFiringAlt() ){ //sec
+		AI_WEAPON_FIRED_ALT = true;
+	//}
 
 	// update view feedback
 	playerView.WeaponFireFeedback( weaponDef );
@@ -2767,9 +2782,11 @@ idPlayer::StopFiring
 void idPlayer::StopFiring( void ) {
 	AI_ATTACK_HELD	= false;
 	AI_WEAPON_FIRED = false;
+	AI_WEAPON_FIRED_ALT = false;
 	AI_RELOAD		= false;
 	if ( weapon.GetEntity() ) {
 		weapon.GetEntity()->EndAttack();
+		weapon.GetEntity()->EndAttackAlt();
 	}
 }
 
@@ -2797,6 +2814,53 @@ void idPlayer::FireWeapon( void ) {
 		if ( weapon.GetEntity()->AmmoInClip() || weapon.GetEntity()->AmmoAvailable() ) {
 			AI_ATTACK_HELD = true;
 			weapon.GetEntity()->BeginAttack();
+			if ( ( weapon_soulcube >= 0 ) && ( currentWeapon == weapon_soulcube ) ) {
+				if ( hud ) {
+					hud->HandleNamedEvent( "soulCubeNotReady" );
+				}
+				SelectWeapon( previousWeapon, false );
+			}
+		} else {
+			NextBestWeapon();
+		}
+	}
+
+	if ( hud ) {
+		if ( tipUp ) {
+			HideTip();
+		}
+		// may want to track with with a bool as well
+		// keep from looking up named events so often
+		if ( objectiveUp ) {
+			HideObjective();
+		}
+	}
+}
+
+/*
+===============
+idPlayer::FireWeaponAlt
+===============
+*/
+void idPlayer::FireWeaponAlt( void ) {
+	idMat3 axis;
+	idVec3 muzzle;
+
+	if ( privateCameraView ) {
+		return;
+	}
+
+	if ( g_editEntityMode.GetInteger() ) {
+		GetViewPos( muzzle, axis );
+		if ( gameLocal.editEntities->SelectEntity( muzzle, axis[0], this ) ) {
+			return;
+		}
+	}
+
+	if ( !hiddenWeapon && weapon.GetEntity()->IsReady() ) {
+		if ( weapon.GetEntity()->AmmoInClip() || weapon.GetEntity()->AmmoAvailable() ) {
+			AI_ATTACK_HELD_ALT = true;
+			weapon.GetEntity()->BeginAttackAlt();
 			if ( ( weapon_soulcube >= 0 ) && ( currentWeapon == weapon_soulcube ) ) {
 				if ( hud ) {
 					hud->HandleNamedEvent( "soulCubeNotReady" );
@@ -3892,6 +3956,7 @@ void idPlayer::Weapon_Combat( void ) {
 
 	// check for attack
 	AI_WEAPON_FIRED = false;
+	AI_WEAPON_FIRED_ALT = false;
 	if ( !influenceActive ) {
 		if ( ( usercmd.buttons & BUTTON_ATTACK ) && !weaponGone ) {
 			FireWeapon();
@@ -3899,8 +3964,15 @@ void idPlayer::Weapon_Combat( void ) {
 			AI_ATTACK_HELD = false;
 			weapon.GetEntity()->EndAttack();
 		}
+	
+	// check for altfire
+		if ( ( usercmd.buttons & BUTTON_5 ) && !weaponGone ) {  // BUTTON_5 is used for alt fires
+			FireWeaponAlt();	// The condition holds True when key is being tapped rather than held
+		} else if ( oldButtons & BUTTON_5 ) {
+			AI_ATTACK_HELD_ALT = false;
+			weapon.GetEntity()->EndAttackAlt();
+		}
 	}
-
 	// update our ammo clip in our inventory
 	if ( ( currentWeapon >= 0 ) && ( currentWeapon < MAX_WEAPONS ) ) {
 		inventory.clip[ currentWeapon ] = weapon.GetEntity()->AmmoInClip();
@@ -4448,6 +4520,7 @@ void idPlayer::UpdateFocus( void ) {
 				if ( ( trace.fraction < 1.0f ) && ( trace.c.entityNum == ent->entityNumber ) ) {
 					ClearFocus();
 					focusVehicle = static_cast<idAFEntity_Vehicle *>( ent );
+					talkCursor = 1;
 					focusTime = gameLocal.time + FOCUS_TIME;
 					break;
 				}
@@ -5531,13 +5604,20 @@ void idPlayer::UseVehicle( void ) {
 		static_cast<idAFEntity_Vehicle*>(GetBindMaster())->Use( this );
 	} else {
 		start = GetEyePosition();
-		end = start + viewAngles.ToForward() * 80.0f;
-		gameLocal.clip.TracePoint( trace, start, end, MASK_SHOT_RENDERMODEL, this );
+		end = start + viewAngles.ToForward() * 180.0f;
+		gameLocal.clip.TracePoint( trace, start, end, MASK_ALL, this );
 		if ( trace.fraction < 1.0f ) {
 			ent = gameLocal.entities[ trace.c.entityNum ];
 			if ( ent && ent->IsType( idAFEntity_Vehicle::Type ) ) {
 				Hide();
 				static_cast<idAFEntity_Vehicle*>(ent)->Use( this );
+			} else if ( ent && ent->IsType( idTrigger::Type) && (ent->spawnArgs.GetInt("spawnflags") & 4) ) {
+				ent->Signal( SIG_TRIGGER );
+				ent->ProcessEvent( &EV_Activate, gameLocal.GetLocalPlayer() );
+				ent->TriggerGuis();
+				//focusCharacter->TalkTo( this );
+			} else if (ent && ent->IsType( idAI::Type) && focusCharacter) {
+				focusCharacter->TalkTo( this );
 			}
 		}
 	}
@@ -8531,4 +8611,26 @@ idPlayer::NeedsIcon
 bool idPlayer::NeedsIcon( void ) {
 	// local clients don't render their own icons... they're only info for other clients
 	return entityNumber != gameLocal.localClientNum && ( isLagged || isChatting );
+}
+
+/*
+=====================
+idPlayer::Event_StartAutoMelee
+=====================
+*/
+void idPlayer::Event_StartAutoMelee( float dmgMult, int trailNum ) {  
+	if ( weapon.GetEntity() ) {
+		weapon.GetEntity()->StartAutoMelee( dmgMult, trailNum );
+	}
+}
+
+/*
+=====================
+idPlayer::Event_StopAutoMelee
+=====================
+*/
+void idPlayer::Event_StopAutoMelee( void ) {
+	if ( weapon.GetEntity() ) {
+		weapon.GetEntity()->StopAutoMelee();
+	}
 }

@@ -61,6 +61,9 @@ static const int LIGHTID_VIEW_MUZZLE_FLASH = 100;
 
 class idMoveableItem;
 
+extern const idEventDef EV_Weapon_StartAutoMelee; 
+extern const idEventDef EV_Weapon_StopAutoMelee; 
+
 class idWeapon : public idAnimatedEntity {
 public:
 	CLASS_PROTOTYPE( idWeapon );
@@ -108,7 +111,9 @@ public:
 	void					ShowWorldModel( void );
 	void					OwnerDied( void );
 	void					BeginAttack( void );
+	void					BeginAttackAlt( void );
 	void					EndAttack( void );
+	void					EndAttackAlt( void );
 	bool					IsReady( void ) const;
 	bool					IsReloading( void ) const;
 	bool					IsHolstered( void ) const;
@@ -145,6 +150,9 @@ public:
 	int						LowAmmo( void ) const;
 	int						AmmoRequired( void ) const;
 
+	void					StartAutoMelee( float dmgMult, int trailNum );
+	void					StopAutoMelee( void );
+
 	virtual void			WriteToSnapshot( idBitMsgDelta &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsgDelta &msg );
 
@@ -161,6 +169,7 @@ public:
 private:
 	// script control
 	idScriptBool			WEAPON_ATTACK;
+	idScriptBool			WEAPON_ATTACK_ALT;
 	idScriptBool			WEAPON_RELOAD;
 	idScriptBool			WEAPON_NETRELOAD;
 	idScriptBool			WEAPON_NETENDRELOAD;
@@ -205,6 +214,16 @@ private:
 	// the muzzle bone's position, used for launching projectiles and trailing smoke
 	idVec3					muzzleOrigin;
 	idMat3					muzzleAxis;
+
+	idVec3					meleeJointOrigin;
+	idMat3					meleeJointAxis;
+	idEntity				*lastMeleeEnt;  
+	idBounds				meleebox;
+	bool                    autoMeleeEnabled;
+	bool					useMeleeBox;
+	float					comboMultiplier;
+	float					firingWalkSpeedMult;
+	int						nextMeleeSnd; // used for autoMelee sound
 
 	idVec3					pushVelocity;
 
@@ -258,6 +277,7 @@ private:
 												// a projectile is launched
 	// mp client
 	bool					isFiring;
+	bool					isFiringAlt;
 
 	// zoom
 	int						zoomFov;			// variable zoom fov per weapon
@@ -272,6 +292,7 @@ private:
 	jointHandle_t			flashJointWorld;
 	jointHandle_t			barrelJointWorld;
 	jointHandle_t			ejectJointWorld;
+	jointHandle_t           meleeJointWorld;
 
 	// sound
 	const idSoundShader *	sndHum;
@@ -315,6 +336,8 @@ private:
 	void					UpdateNozzleFx( void );
 	void					UpdateFlashPosition( void );
 
+	bool					EvaluateMelee( void ); 
+
 	// script events
 	void					Event_Clear( void );
 	void					Event_GetOwner( void );
@@ -353,6 +376,9 @@ private:
 	void					Event_NetReload( void );
 	void					Event_IsInvisible( void );
 	void					Event_NetEndReload( void );
+
+	void					Event_StartAutoMelee( float dmgMult, int trailNum );
+	void					Event_StopAutoMelee( void );
 };
 
 ID_INLINE bool idWeapon::IsLinked( void ) {

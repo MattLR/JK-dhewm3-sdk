@@ -37,6 +37,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Entity.h"
 #include "Fx.h"
 #include "Game_local.h"
+#include "Player.h"
 
 #include "anim/Anim.h"
 
@@ -57,6 +58,7 @@ idAnim::idAnim
 */
 idAnim::idAnim() {
 	modelDef = NULL;
+	rate = 1.0f;
 	numAnims = 0;
 	memset( anims, 0, sizeof( anims ) );
 	memset( &flags, 0, sizeof( flags ) );
@@ -75,6 +77,7 @@ idAnim::idAnim( const idDeclModelDef *modelDef, const idAnim *anim ) {
 	name = anim->name;
 	realname = anim->realname;
 	flags = anim->flags;
+	rate = anim->rate;
 
 	memset( anims, 0, sizeof( anims ) );
 	for( i = 0; i < numAnims; i++ ) {
@@ -560,6 +563,23 @@ const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenu
 		}
 		fc.type = FC_LAUNCHMISSILE;
 		fc.string = new idStr( token );
+	} else if ( token == "startAutoMelee" ) {
+		if( !src.ReadTokenOnLine( &token ) ) {
+			return "Unexpected end of line";
+		}
+		
+		fc.string = new idStr( token ); //dmg mult
+
+		if( !src.ReadTokenOnLine( &token ) ) {
+			fc.index = -1; //default is no beam
+		}else{
+			fc.index = atoi( token ); 
+		}
+
+		fc.type = FC_START_AUTOMELEE;
+		
+	} else if ( token == "stopAutoMelee" ) { 
+		fc.type = FC_STOP_AUTOMELEE;
 	} else if ( token == "fire_missile_at_target" ) {
 		if( !src.ReadTokenOnLine( &token ) ) {
 			return "Unexpected end of line";
@@ -863,6 +883,17 @@ void idAnim::CallFrameCommands( idEntity *ent, int from, int to ) const {
 				}
 				case FC_LAUNCHMISSILE: {
 					ent->ProcessEvent( &AI_AttackMissile, command.string->c_str() );
+					break;
+				}
+				case FC_START_AUTOMELEE: {
+					float value;
+					value = atof(command.string->c_str());
+
+					ent->ProcessEvent( &EV_Weapon_StartAutoMelee, value, command.index );
+					break;
+				}
+				case FC_STOP_AUTOMELEE: {
+					ent->ProcessEvent( &EV_Weapon_StopAutoMelee );
 					break;
 				}
 				case FC_FIREMISSILEATTARGET: {
@@ -1304,7 +1335,7 @@ void idAnimBlend::SetFrame( const idDeclModelDef *modelDef, int _animNum, int _f
 idAnimBlend::CycleAnim
 =====================
 */
-void idAnimBlend::CycleAnim( const idDeclModelDef *modelDef, int _animNum, int currentTime, int blendTime ) {
+void idAnimBlend::CycleAnim( const idDeclModelDef *modelDef, int _animNum, int currentTime, int blendTime, float _rate ) {
 	Reset( modelDef );
 	if ( !modelDef ) {
 		return;
@@ -1337,6 +1368,11 @@ void idAnimBlend::CycleAnim( const idDeclModelDef *modelDef, int _animNum, int c
 	blendStartTime		= currentTime - 1;
 	blendDuration		= blendTime;
 	blendStartValue		= 0.0f;
+
+	_rate *= _anim->GetPlaybackRate ( );
+	if ( _rate != 1.0f ) {
+		SetPlaybackRate ( currentTime, _rate );
+	}	
 }
 
 /*
@@ -1344,7 +1380,7 @@ void idAnimBlend::CycleAnim( const idDeclModelDef *modelDef, int _animNum, int c
 idAnimBlend::PlayAnim
 =====================
 */
-void idAnimBlend::PlayAnim( const idDeclModelDef *modelDef, int _animNum, int currentTime, int blendTime ) {
+void idAnimBlend::PlayAnim( const idDeclModelDef *modelDef, int _animNum, int currentTime, int blendTime, float _rate ) {
 	Reset( modelDef );
 	if ( !modelDef ) {
 		return;
@@ -1372,6 +1408,11 @@ void idAnimBlend::PlayAnim( const idDeclModelDef *modelDef, int _animNum, int cu
 	blendStartTime		= currentTime - 1;
 	blendDuration		= blendTime;
 	blendStartValue		= 0.0f;
+
+	_rate *= _anim->GetPlaybackRate ( );
+	if ( _rate != 1.0f ) {
+		SetPlaybackRate ( currentTime, _rate );
+	}
 }
 
 /*
@@ -2503,6 +2544,8 @@ bool idDeclModelDef::ParseAnim( idLexer &src, int numDefaultAnims ) {
 				flags.prevent_idle_override = true;
 			} else if ( token == "random_cycle_start" ) {
 				flags.random_cycle_start = true;
+			} else if ( token == "rate" ) { 
+				anim->SetPlaybackRate ( src.ParseFloat ( ) );
 			} else if ( token == "ai_no_turn" ) {
 				flags.ai_no_turn = true;
 			} else if ( token == "anim_turn" ) {
@@ -3021,6 +3064,8 @@ idAnimator::idAnimator() {
 	removeOriginOffset		= false;
 	forceUpdate				= false;
 
+	rateMultiplier			= 1;
+
 	frameBounds.Clear();
 
 	AFPoseJoints.SetGranularity( 1 );
@@ -3512,7 +3557,7 @@ void idAnimator::CycleAnim( int channelNum, int animNum, int currentTime, int bl
 	}
 
 	PushAnims( channelNum, currentTime, blendTime );
-	channels[ channelNum ][ 0 ].CycleAnim( modelDef, animNum, currentTime, blendTime );
+	channels[ channelNum ][ 0 ].CycleAnim( modelDef, animNum, currentTime, blendTime, rateMultiplier );
 	if ( entity ) {
 		entity->BecomeActive( TH_ANIMATE );
 	}
@@ -3533,7 +3578,7 @@ void idAnimator::PlayAnim( int channelNum, int animNum, int currentTime, int ble
 	}
 
 	PushAnims( channelNum, currentTime, blendTime );
-	channels[ channelNum ][ 0 ].PlayAnim( modelDef, animNum, currentTime, blendTime );
+	channels[ channelNum ][ 0 ].PlayAnim( modelDef, animNum, currentTime, blendTime, rateMultiplier );
 	if ( entity ) {
 		entity->BecomeActive( TH_ANIMATE );
 	}
@@ -3566,6 +3611,26 @@ void idAnimator::SyncAnimChannels( int channelNum, int fromChannelNum, int curre
 
 	if ( entity ) {
 		entity->BecomeActive( TH_ANIMATE );
+	}
+}
+/*
+=====================
+idAnimator::SetPlaybackRate
+=====================
+*/
+void idAnimator::SetPlaybackRate( const char* animName, float rate ) {
+	SetPlaybackRate( GetAnim(animName), rate );
+}
+
+/*
+=====================
+idAnimator::SetPlaybackRate
+=====================
+*/
+void idAnimator::SetPlaybackRate( int animHandle, float rate ) {
+	idAnim* anim = const_cast<idAnim*>( GetAnim(animHandle) );
+	if( anim ) {
+		anim->SetPlaybackRate( rate );
 	}
 }
 
