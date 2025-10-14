@@ -2762,7 +2762,7 @@ void idPlayer::WeaponFireFeedback( const idDict *weaponDef ) {
 	blink_time = 0;
 
 	// play the fire animation
-	//AI_WEAPON_FIRED = true;
+	AI_WEAPON_FIRED = true;
 
 	//if(weapon.GetEntity()->GetIsFiring() ){ //pri
 	//	AI_WEAPON_FIRED = true;
