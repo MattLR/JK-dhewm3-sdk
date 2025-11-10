@@ -472,6 +472,7 @@ idDamagable::Spawn
 */
 void idDamagable::Spawn( void ) {
 	idStr broken;
+	int spawnFlags = spawnArgs.GetInt("spawnflags");
 
 	health = spawnArgs.GetInt( "health", "5" );
 	spawnArgs.GetInt( "count", "1", count );
@@ -485,6 +486,9 @@ void idDamagable::Spawn( void ) {
 
 	fl.takedamage = true;
 	GetPhysics()->SetContents( CONTENTS_SOLID );
+	if (spawnFlags == 0) {
+		GetPhysics()->SetContents( 0 );
+	}
 }
 
 /*
@@ -1415,6 +1419,7 @@ void idStaticEntity::Spawn( void ) {
 	} else {
 		GetPhysics()->SetContents( 0 );
 	}
+
 
 	spawnTime = gameLocal.time;
 	active = false;

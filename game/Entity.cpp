@@ -275,6 +275,29 @@ void idGameEdit::ParseSpawnArgsToRenderEntity( const idDict *args, renderEntity_
 			renderEntity->axis.Identity();
 		}
 	}
+	idVec3 angles;
+	idVec3 scaleVec;
+	float scale;
+	idMat3 scaleMat;
+	//args->GetVector("modelscale_vec", "1", scaleVec);
+	args->GetFloat("modelscale", "1", scale);
+	scaleMat[ 0 ].Set( scale, 0, 0 );
+	scaleMat[ 1 ].Set( 0, scale, 0 );
+	scaleMat[ 2 ].Set( 0, 0, scale );
+	if (args->GetVector ("angles", "0 0 0", angles)) {
+		idMat3 scale2 = idAngles( angles ).ToMat3()*scaleMat;
+		//renderEntity->axis = idAngles( angles ).ToMat3();
+		renderEntity->axis = scale2;
+	}
+	if (args->GetVector("modelscale_vec", "1", scaleVec))	{
+	scaleMat[ 0 ].Set( scale*scaleVec[0], 0, 0 );
+	scaleMat[ 1 ].Set( 0, scale*scaleVec[1], 0 );
+	scaleMat[ 2 ].Set( 0, 0, scale*scaleVec[2] );
+
+	idMat3 scale2 = renderEntity->axis*scaleMat;
+	renderEntity->axis = scale2;
+	}
+
 
 	renderEntity->referenceSound = NULL;
 

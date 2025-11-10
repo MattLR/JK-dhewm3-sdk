@@ -41,6 +41,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Fx.h"
 #include "Misc.h"
 #include "Trigger.h"
+#include "Moveable.h"
 
 const int ASYNC_PLAYER_INV_AMMO_BITS = idMath::BitsForInteger( 999 );	// 9 bits to cover the range [0, 999]
 const int ASYNC_PLAYER_INV_CLIP_BITS = -7;								// -7 bits to cover the range [-1, 60]
@@ -65,6 +66,9 @@ const int WEAPON_DROP_TIME = 20 * 1000;
 
 // time before a next or prev weapon switch happens
 const int WEAPON_SWITCH_DELAY = 150;
+
+// time before a next or prev force switch happens
+const int FORCE_SWITCH_DELAY = 150;
 
 // how many units to raise spectator above default view height so it's in the head of someone
 const int SPECTATE_RAISE = 25;
@@ -140,6 +144,7 @@ idInventory::Clear
 void idInventory::Clear( void ) {
 	maxHealth		= 0;
 	weapons			= 0;
+	forcePowers		= 0;
 	powerups		= 0;
 	armor			= 0;
 	maxarmor		= 0;
@@ -409,6 +414,7 @@ void idInventory::RestoreInventory( idPlayer *owner, const idDict &dict ) {
 		Give( owner, dict, "weapon", dict.GetString( "weapon_nightmare" ), NULL, false );
 	} else {
 		Give( owner, dict, "weapon", dict.GetString( "weapon" ), NULL, false );
+		//forcePowers |= ( 1 << 1 ); // JK FIXME
 	}
 
 	num = dict.GetInt( "levelTriggers" );
@@ -1043,6 +1049,12 @@ idPlayer::idPlayer() {
 	weapon_fists			= -1;
 	showWeaponViewModel		= true;
 
+	currentForcePower			= 0;
+	idealForcePower				= 0;
+	previousForcePower			= -1;
+	forcePowerSwitchTime			=  0;
+	forcePowerEnabled			= true;
+
 	skin					= NULL;
 	powerUpSkin				= NULL;
 	baseSkinName			= "";
@@ -1222,6 +1234,10 @@ void idPlayer::Init( void ) {
 	weapon_fists			= SlotForWeapon( "weapon_fists" );
 	showWeaponViewModel		= GetUserInfo()->GetBool( "ui_showGun" );
 
+	currentForcePower			= 0;
+	idealForcePower			= 0;
+	previousForcePower			= -1;
+	forcePowerSwitchTime		= 0;
 
 	lastDmgTime				= 0;
 	lastArmorPulse			= -10000;
@@ -2613,6 +2629,47 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 	}
 	if ( flashWeapon ) {
 		hud->HandleNamedEvent( "weaponChange" );
+	}
+}
+/*
+===============
+idPlayer::UpdateHudForcePower
+===============
+*/
+void idPlayer::UpdateHudForcePower( bool flashWeapon ) {
+	idUserInterface *hud = idPlayer::hud;
+
+	// if updating the hud of a followed client
+	if ( gameLocal.localClientNum >= 0 && gameLocal.entities[ gameLocal.localClientNum ] && gameLocal.entities[ gameLocal.localClientNum ]->IsType( idPlayer::Type ) ) {
+		idPlayer *p = static_cast< idPlayer * >( gameLocal.entities[ gameLocal.localClientNum ] );
+		if ( p->spectating && p->spectator == entityNumber ) {
+			assert( p->hud );
+			hud = p->hud;
+		}
+	}
+
+	if ( !hud ) {
+		return;
+	}
+
+	for ( int i = 0; i < 4; i++ ) {
+		//const char *weapnum = va( "def_weapon%d", 1 );
+		const char *hudWeap = va( "forcePower%d", i );
+		int weapstate = 0;
+		/*if ( inventory.weapons & ( 1 << i ) ) {
+			const char *weap = spawnArgs.GetString( weapnum );
+			if ( weap && *weap ) {
+				weapstate++;
+			}*/
+			if ( currentForcePower == i ) {
+				//weapstate++;
+				weapstate = 2;
+			}
+		//}
+		hud->SetStateInt( hudWeap, weapstate );
+	}
+	if ( flashWeapon ) {
+		hud->HandleNamedEvent( "forcePowerChange" );
 	}
 }
 
@@ -4742,8 +4799,9 @@ void idPlayer::CrashLand( const idVec3 &oldOrigin, const idVec3 &oldVelocity ) {
 		fatalDelta	= 75.0f;
 		hardDelta	= 50.0f;
 	} else {
-		fatalDelta	= 65.0f;
-		hardDelta	= 45.0f;
+		//TEMP FOR TESTING, ORIGINAL 65.0 and 45.0 FIXME ADD CODE FOR FORCEPOWER FALL DAAMGE
+		fatalDelta	= 195.0f;
+		hardDelta	= 135.0f;
 	}
 
 	if ( delta > fatalDelta ) {
@@ -4762,7 +4820,7 @@ void idPlayer::CrashLand( const idVec3 &oldOrigin, const idVec3 &oldVelocity ) {
 			pain_debounce_time = gameLocal.time + pain_delay + 1;  // ignore pain since we'll play our landing anim
 			Damage( NULL, NULL, idVec3( 0, 0, -1 ), "damage_hardfall", 1.0f, 0 );
 		}
-	} else if ( delta > 30 ) {
+	} else if ( delta > 60 ) { //FIXME ORIGINAL 30 SHOULD BE A VARIABLE NOT A NUMBER, and scale pain rather than having a hard cut off
 		AI_HARDLANDING = true;
 		landChange	= -16;
 		landTime	= gameLocal.time;
@@ -5691,6 +5749,18 @@ void idPlayer::PerformImpulse( int impulse ) {
 			if ( gameLocal.isClient || entityNumber == gameLocal.localClientNum ) {
 				gameLocal.mpGame.ToggleSpectate();
 			}
+			break;
+		}
+		case IMPULSE_23: {
+			UseForce();
+			break;
+		}
+		case IMPULSE_24: {
+			NextForce();
+			break;
+		}
+		case IMPULSE_25: {
+			PrevForce();
 			break;
 		}
 		case IMPULSE_28: {
@@ -8632,5 +8702,288 @@ idPlayer::Event_StopAutoMelee
 void idPlayer::Event_StopAutoMelee( void ) {
 	if ( weapon.GetEntity() ) {
 		weapon.GetEntity()->StopAutoMelee();
+	}
+}
+/*
+===============
+idPlayer::UseForce
+===============
+*/
+void idPlayer::UseForce( void ) {
+	int forceLevel = 1;
+	//int currentForcePower = 2;
+	switch( currentForcePower ) {
+		case 0: { //"speed",  just berkserk atm
+			gameLocal.Printf("Speed level %d\n", forceLevel);
+			inventory.GivePowerUp( this, 0, 30000);
+			break;
+		}
+		case 1: { //heal
+			gameLocal.Printf("Heal level %d\n", forceLevel);
+			if (forceLevel == 1) {
+				gameLocal.Printf("Heal level %d\n", forceLevel);
+				Give( "health", "5");
+			} else if(forceLevel == 2) {
+				break;
+			} else {
+				break;
+			}
+			break;
+		}
+		case 2: { //Push
+		int pushRadius = 400;
+		int pushStrength = 1000;
+		gameLocal.Printf("Push\n");
+		idVec3 origin = GetPhysics()->GetOrigin();
+		idVec3 offset( 0.0f, 0.0f, -40.0f );
+		// Collect entities within radius. Doom 3 doesn't have a direct RadiusList helper in public SDK,
+		// so we use clip.Contents or iterate entities and test distance (simple but works for small maps).
+
+		for ( int i = 0; i < gameLocal.num_entities; i++ ) {
+			idEntity *ent = gameLocal.entities[i];
+			if ( !ent || ent == this ) continue;
+			if ( ent->IsHidden() ) continue;
+			// basic distance check
+			idVec3 eorg = ent->GetPhysics()->GetOrigin();
+			float dist = ( eorg - origin ).Length();
+			if ( dist > pushRadius ) continue;
+
+			// Direction and strength falloff (optional)
+			idVec3 dir = origin + offset - eorg;
+			if ( dir.Length() == 0 ) {
+				dir = this->GetPhysics()->GetAxis()[0];
+			} else {
+				dir.Normalize();
+			}
+
+			float falloff = 1.0f - ( dist / pushRadius );
+			float impulse = pushStrength * falloff;
+
+			idPhysics *phys = ent->GetPhysics();
+			if ( phys ) {
+				idVec3 vel = phys->GetLinearVelocity();
+				vel += dir * impulse;
+				phys->SetLinearVelocity( vel );
+			}
+
+			// Handle NPCs/enemies (idAI or subclasses)
+			idAI *ai = dynamic_cast<idAI*>( ent );
+			if ( ai ) {
+			idVec3 vel = phys->GetLinearVelocity();
+			vel += dir * impulse;
+			idVec3 grav (0.0f, 0.0f, -10.0f);
+    		phys->SetLinearVelocity( vel );
+			//idVec3 center = ai->GetPhysics()->GetCenterOfMass();
+			//ai->GetPhysics()->ApplyImpulse(owner, 0, center, dir * impulse);
+			//phys->SetLinearVelocity( phys->GetLinearVelocity() + finalDir * (finalImpulse * 0.6f) );
+			phys->SetLinearVelocity( dir * impulse * 0.5f );
+			//ai->Pain( this, this, dir, 0, vec3_origin, 0 ); // trigger stumble/pain reaction
+			continue;
+		}
+		idAFEntity_Base *rag = dynamic_cast<idAFEntity_Base*>( ent );
+		if ( rag && rag->IsActiveAF() ) {
+			// Add impulses to all articulated bodies
+			for ( int j = 0; j < rag->GetAFPhysics()->GetNumBodies(); j++ ) {
+				rag->GetAFPhysics()->GetBody( j )->AddForce( dir, dir * impulse * 0.5f );
+			}
+			continue;
+		}
+
+			// Damage small amount to ragdollable entities or apply other effects
+			if ( ent->fl.takedamage ) {
+				// Create damage structure
+				int dmg = (int)( 10.0f * falloff );
+				if ( dmg > 0 ) {
+					idEntity *inflictor = this;
+					ent->Damage( this, inflictor, dir, "push_power", dmg, 0 );
+					}
+				}
+			}
+			break;
+		}
+		case 3: { //pull
+		int pullRadius = 400;
+		int pullStrength = 1000;
+		gameLocal.Printf("Force Pull level %d \n", forceLevel);
+		idVec3 origin = GetPhysics()->GetOrigin();
+		idVec3 offset( 0.0f, 0.0f, 50.0f );
+		// Collect entities within radius. Doom 3 doesn't have a direct RadiusList helper in public SDK,
+		// so we use clip.Contents or iterate entities and test distance (simple but works for small maps).
+
+		for ( int i = 0; i < gameLocal.num_entities; i++ ) {
+			idEntity *ent = gameLocal.entities[i];
+			if ( !ent || ent == this ) continue;
+			if ( ent->IsHidden() ) continue;
+			// basic distance check
+			idVec3 eorg = ent->GetPhysics()->GetOrigin();
+			float dist = ( eorg - origin ).Length();
+			if ( dist > pullRadius ) continue;
+
+			// Direction and strength falloff (optional)
+			idVec3 dir = eorg - origin - offset; 
+			if ( dir.Length() == 0 ) {
+				dir = this->GetPhysics()->GetAxis()[0];
+			} else {
+				dir.Normalize();
+			}
+			//ent->ApplyImpulse( this, 0, ent->GetPhysics()->GetOrigin(), this->firstPersonViewAxis[0] * 1000 * ent->GetPhysics()->GetMass() );
+			float falloff = 0.0f + ( dist / pullRadius );
+			float impulse = pullStrength * falloff;
+			idPhysics *phys = ent->GetPhysics();
+			if ( ent->IsType( idMoveable::Type ) ) {
+				idMoveable *ent = static_cast<idMoveable*>(ent);
+					//
+					idVec3 vel = phys->GetLinearVelocity();
+					vel += dir * impulse;
+					phys->SetLinearVelocity( vel );
+					continue;
+				}
+			// Handle NPCs/enemies (idAI or subclasses)
+			idAI *ai = dynamic_cast<idAI*>( ent );
+			if ( ai ) {
+			idVec3 vel = phys->GetLinearVelocity();
+			vel += dir * impulse;
+    		phys->SetLinearVelocity( -vel );
+			//ent->ApplyImpulse( this, 0, ent->GetPhysics()->GetOrigin(), this->firstPersonViewAxis[0] * 1000 * ent->GetPhysics()->GetMass() );
+			//idVec3 impulseVec = dir*pushStrength*falloff;
+			//->ApplyImpulse( 0, eorg, -impulseVec );
+			//idVec3 center = ai->GetPhysics()->GetCenterOfMass();
+			//ai->GetPhysics()->ApplyImpulse(owner, 0, center, dir * impulse);
+			//phys->SetLinearVelocity( phys->GetLinearVelocity() + finalDir * (finalImpulse * 0.6f) );
+			//phys->SetLinearVelocity( dir * impulse * 0.5f );
+			//ai->Pain( this, this, dir, 0, vec3_origin, 0 ); // trigger stumble/pain reaction
+			continue;
+		}
+		idAFEntity_Base *rag = dynamic_cast<idAFEntity_Base*>( ent );
+		if ( rag && rag->IsActiveAF() ) {
+			// Add impulses to all articulated bodies
+			for ( int j = 0; j < rag->GetAFPhysics()->GetNumBodies(); j++ ) {
+				rag->GetAFPhysics()->GetBody( j )->AddForce( dir, dir * impulse * 0.5f );
+			}
+			continue;
+		}
+
+			// Damage small amount to ragdollable entities or apply other effects
+			if ( ent->fl.takedamage ) {
+				// Create damage structure
+				int dmg = (int)( 10.0f * falloff );
+				if ( dmg > 0 ) {
+					idEntity *inflictor = this;
+					ent->Damage( this, inflictor, dir, "push_power", dmg, 0 );
+					}
+				}
+			}
+			break;
+		}
+		default: {
+			break;
+		}
+	}
+
+}
+/*
+===============
+idPlayer::NextForce
+===============
+*/
+
+//There's loads of code in combat that actually does weapon swaps, I'm not dealing with multiplayer yet so just swap the weapon and fix it later
+void idPlayer::NextForce( void ) {
+	currentForcePower++;
+		if ( currentForcePower > 3 ) {
+			currentForcePower = 0;
+		}
+	/*
+	const char *weap;
+	int w;
+
+	if ( !weaponEnabled || spectating || hiddenWeapon || gameLocal.inCinematic || gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) || health < 0 ) {
+		return;
+	}
+
+	if ( gameLocal.isClient ) {
+		return;
+	}
+
+	// check if we know any force powers
+	if ( !inventory.forcePowers ) {
+		gameLocal.Printf("wowlwowlw2");
+		return;
+	}
+	w = idealForcePower;
+	while( 1 ) {
+		gameLocal.Printf("wowlwowlw3");
+		w++;
+		if ( w >= MAX_FORCE_POWERS ) {
+			w = 0;
+		}
+		weap = spawnArgs.GetString( va( "def_power%d", w ) );
+		//if ( !spawnArgs.GetBool( va( "weapon%d_cycle", w ) ) ) {
+		//	continue;
+		//}
+		if ( !weap[ 0 ] ) {
+			continue;
+		}
+		if ( ( inventory.forcePowers & ( 1 << w ) ) == 0 ) {
+			continue;
+		}
+			break;
+	}
+	gameLocal.Printf("wow4");
+	gameLocal.Printf("'currentWeapon'");
+	if ( ( w != currentForcePower ) && ( w != idealForcePower ) ) {
+		idealForcePower = w;
+		forcePowerSwitchTime = gameLocal.time + FORCE_SWITCH_DELAY;
+		currentForcePower = idealForcePower;
+		//UpdateHudForcePower();
+		gameLocal.Printf("wow5");
+		gameLocal.Printf("'%d'");
+	} */
+		UpdateHudForcePower();
+}
+/*
+===============
+idPlayer::PrevForce
+===============
+*/
+void idPlayer::PrevForce( void ) {
+	//const char *weap;
+	int w;
+
+	if ( !weaponEnabled || spectating || hiddenWeapon || gameLocal.inCinematic || gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) || health < 0 ) {
+		return;
+	}
+
+	if ( gameLocal.isClient ) {
+		return;
+	}
+
+	// check if we have any weapons
+	if ( !inventory.forcePowers ) {
+		return;
+	}
+
+	w = idealForcePower;
+	while( 1 ) {
+		w--;
+		if ( w < 0 ) {
+			w = MAX_FORCE_POWERS - 1;
+		}
+		//weap = spawnArgs.GetString( va( "def_weapon%d", w ) );
+
+		/*
+		if ( !weap[ 0 ] ) {
+			continue;
+		}
+		*/
+		if ( ( inventory.forcePowers & ( 1 << w ) ) == 0 ) {
+			continue;
+		}
+	}
+
+	if ( ( w != currentForcePower ) && ( w != idealForcePower ) ) {
+		idealForcePower = w;
+		forcePowerSwitchTime = gameLocal.time + FORCE_SWITCH_DELAY;
+		//UpdateHudForce();
 	}
 }

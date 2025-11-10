@@ -65,6 +65,7 @@ const int	FOCUS_TIME = 300;
 const int	FOCUS_GUI_TIME = 500;
 
 const int MAX_WEAPONS = 16;
+const int MAX_FORCE_POWERS = 16;
 
 const int DEAD_HEARTRATE = 0;			// fall to as you die
 const int LOWHEALTH_HEARTRATE_ADJ = 20; //
@@ -126,6 +127,7 @@ class idInventory {
 public:
 	int						maxHealth;
 	int						weapons;
+	int						forcePowers;
 	int						powerups;
 	int						armor;
 	int						maxarmor;
@@ -447,6 +449,9 @@ public:
 	void					WeaponRisingCallback( void );
 	void					RemoveWeapon( const char *weap );
 	bool					CanShowWeaponViewmodel( void ) const;
+	void					UseForce( void ); //JK
+	void					NextForce( void ); //JK
+	void					PrevForce( void ); //JK
 
 	void					AddAIKill( void );
 	void					SetSoulCubeProjectile( idProjectile *projectile );
@@ -475,6 +480,7 @@ public:
 	idCamera *				GetPrivateCameraView( void ) const { return privateCameraView; }
 	void					StartFxFov( float duration  );
 	void					UpdateHudWeapon( bool flashWeapon = true );
+	void					UpdateHudForcePower( bool flashWeapon = true );
 	void					UpdateHudStats( idUserInterface *hud );
 	void					UpdateHudAmmo( idUserInterface *hud );
 	void					Event_StopAudioLog( void );
@@ -557,6 +563,12 @@ private:
 	int						weaponSwitchTime;
 	bool					weaponEnabled;
 	bool					showWeaponViewModel;
+
+	int						currentForcePower;
+	int 					idealForcePower;
+	int 					previousForcePower;
+	int 					forcePowerSwitchTime;
+	bool 					forcePowerEnabled;
 
 	const idDeclSkin *		skin;
 	const idDeclSkin *		powerUpSkin;

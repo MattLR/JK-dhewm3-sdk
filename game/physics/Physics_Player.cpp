@@ -628,6 +628,16 @@ void idPhysics_Player::AirMove( void ) {
 
 	// not on ground, so little effect on velocity
 	idPhysics_Player::Accelerate( wishdir, wishspeed, PM_AIRACCELERATE );
+	//check if jump held, if greater than timer and if forcejumptoken >0;
+	bool canForceJump = true;
+	if ( (current.movementFlags & PMF_JUMP_HELD) && canForceJump && !current.movementTime) {
+		//FIXME Force jump test stuff
+		idVec3 addVelocity;
+		addVelocity = 0.40f * maxJumpHeight * -gravityVector;
+		addVelocity *= idMath::Sqrt( addVelocity.Normalize() );
+		current.velocity += addVelocity;
+		current.movementTime = 80;
+	}
 
 	// we may have a ground plane that is very steep, even
 	// though we don't have a groundentity
@@ -1199,6 +1209,7 @@ bool idPhysics_Player::CheckJump( void ) {
 	groundPlane = false;		// jumping away
 	walking = false;
 	current.movementFlags |= PMF_JUMP_HELD | PMF_JUMPED;
+	current.movementTime = 200;
 
 	addVelocity = 2.0f * maxJumpHeight * -gravityVector;
 	addVelocity *= idMath::Sqrt( addVelocity.Normalize() );
