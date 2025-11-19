@@ -233,6 +233,7 @@ private:
 	const idDeclEntityDef *	weaponDef;
 	const idDeclEntityDef *	meleeDef;
 	idDict					projectileDict;
+	idDict					projectileDictAlt; //Dynamix
 	float					meleeDistance;
 	idStr					meleeDefName;
 	idDict					brassDict;
@@ -367,6 +368,7 @@ private:
 	void					Event_SetLightParm( int parmnum, float value );
 	void					Event_SetLightParms( float parm0, float parm1, float parm2, float parm3 );
 	void					Event_LaunchProjectiles( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower );
+	void					Event_LaunchProjectiles_Alt( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower );
 	void					Event_CreateProjectile( void );
 	void					Event_EjectBrass( void );
 	void					Event_Melee( void );

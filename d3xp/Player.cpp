@@ -1493,13 +1493,16 @@ void idPlayer::Init( void ) {
 	weapon_soulcube			= SlotForWeapon( "weapon_soulcube" );
 	weapon_pda				= SlotForWeapon( "weapon_pda" );
 	weapon_fists			= SlotForWeapon( "weapon_fists" );
+	/*
 #ifdef _D3XP
+
 	weapon_bloodstone		= SlotForWeapon( "weapon_bloodstone_passive" );
 	weapon_bloodstone_active1 = SlotForWeapon( "weapon_bloodstone_active1" );
 	weapon_bloodstone_active2 = SlotForWeapon( "weapon_bloodstone_active2" );
 	weapon_bloodstone_active3 = SlotForWeapon( "weapon_bloodstone_active3" );
 	harvest_lock			= false;
 #endif
+*/
 	showWeaponViewModel		= GetUserInfo()->GetBool( "ui_showGun" );
 
 
@@ -3038,6 +3041,7 @@ void idPlayer::UpdateHudAmmo( idUserInterface *_hud ) {
 	_hud->SetStateString( "player_ammo_count", va("%i", weapon.GetEntity()->AmmoCount()));
 #endif
 
+/*
 #ifdef _D3XP
 	//Make sure the hud always knows how many bloodstone charges there are
 	int ammoRequired;
@@ -3046,7 +3050,7 @@ void idPlayer::UpdateHudAmmo( idUserInterface *_hud ) {
 	_hud->SetStateString("player_bloodstone_ammo", va("%i", bloodstoneAmmo));
 	_hud->HandleNamedEvent( "bloodstoneAmmoUpdate" );
 #endif
-
+*/
 	_hud->HandleNamedEvent( "updateAmmo" );
 }
 

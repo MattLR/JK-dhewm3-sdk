@@ -66,6 +66,7 @@ const idEventDef EV_Weapon_WeaponRising( "weaponRising" );
 const idEventDef EV_Weapon_WeaponLowering( "weaponLowering" );
 const idEventDef EV_Weapon_Flashlight( "flashlight", "d" );
 const idEventDef EV_Weapon_LaunchProjectiles( "launchProjectiles", "dffff" );
+const idEventDef EV_Weapon_LaunchProjectiles_Alt( "launchProjectilesAlt", "dffff" );
 const idEventDef EV_Weapon_CreateProjectile( "createProjectile", NULL, 'e' );
 const idEventDef EV_Weapon_EjectBrass( "ejectBrass" );
 const idEventDef EV_Weapon_Melee( "melee", NULL, 'd' );
@@ -109,6 +110,7 @@ CLASS_DECLARATION( idAnimatedEntity, idWeapon )
 	EVENT( EV_Light_SetLightParm,				idWeapon::Event_SetLightParm )
 	EVENT( EV_Light_SetLightParms,				idWeapon::Event_SetLightParms )
 	EVENT( EV_Weapon_LaunchProjectiles,			idWeapon::Event_LaunchProjectiles )
+	EVENT( EV_Weapon_LaunchProjectiles_Alt,		idWeapon::Event_LaunchProjectiles_Alt )
 	EVENT( EV_Weapon_CreateProjectile,			idWeapon::Event_CreateProjectile )
 	EVENT( EV_Weapon_EjectBrass,				idWeapon::Event_EjectBrass )
 	EVENT( EV_Weapon_Melee,						idWeapon::Event_Melee )
@@ -812,6 +814,7 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	const char *vmodel;
 	const char *guiName;
 	const char *projectileName;
+	const char *projectileNameAlt;
 	const char *brassDefName;
 	const char *smokeName;
 	int			ammoAvail;
@@ -910,6 +913,25 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 				gameLocal.Warning( "Invalid spawnclass '%s' on projectile '%s' (used by weapon '%s')", spawnclass, projectileName, objectname );
 			} else {
 				projectileDict = projectileDef->dict;
+			}
+		}
+	}
+	//Get the alt fire projectile Dynamix
+	//Add a thing to check if it has an alt fire for other stuff
+	projectileDictAlt.Clear();
+
+	projectileNameAlt = weaponDef->dict.GetString( "def_projectile_alt" );
+	if ( projectileNameAlt[0] != '\0' ) {
+		const idDeclEntityDef *projectileDefAlt = gameLocal.FindEntityDef( projectileNameAlt, false );
+		if ( !projectileDefAlt ) {
+			gameLocal.Warning( "Unknown projectile '%s' in weapon '%s'", projectileNameAlt, objectname );
+		} else {
+			const char *spawnclass = projectileDefAlt->dict.GetString( "spawnclass" );
+			idTypeInfo *cls = idClass::GetClass( spawnclass );
+			if ( !cls || !cls->IsType( idProjectile::Type ) ) {
+				gameLocal.Warning( "Invalid spawnclass '%s' on projectile '%s' (used by weapon '%s')", spawnclass, projectileNameAlt, objectname );
+			} else {
+				projectileDictAlt = projectileDefAlt->dict;
 			}
 		}
 	}
@@ -3021,6 +3043,188 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 
 			if ( !ent || !ent->IsType( idProjectile::Type ) ) {
 				const char *projectileName = weaponDef->dict.GetString( "def_projectile" );
+				gameLocal.Error( "'%s' is not an idProjectile", projectileName );
+			}
+
+			if ( projectileDict.GetBool( "net_instanthit" ) ) {
+				// don't synchronize this on top of the already predicted effect
+				ent->fl.networkSync = false;
+			}
+
+			proj = static_cast<idProjectile *>(ent);
+			proj->Create( owner, muzzleOrigin, dir );
+
+			projBounds = proj->GetPhysics()->GetBounds().Rotate( proj->GetPhysics()->GetAxis() );
+
+			// make sure the projectile starts inside the bounding box of the owner
+			if ( i == 0 ) {
+				muzzle_pos = muzzleOrigin + playerViewAxis[ 0 ] * 2.0f;
+				// DG: sometimes the assertion in idBounds::operator-(const idBounds&) triggers
+				//     (would get bounding box with negative volume)
+				//     => check that before doing ownerBounds - projBounds (equivalent to the check in the assertion)
+				idVec3 obDiff = ownerBounds[1] - ownerBounds[0];
+				idVec3 pbDiff = projBounds[1] - projBounds[0];
+				bool boundsSubLegal =  obDiff.x > pbDiff.x && obDiff.y > pbDiff.y && obDiff.z > pbDiff.z;
+				if ( boundsSubLegal && ( ownerBounds - projBounds ).RayIntersection( muzzle_pos, playerViewAxis[0], distance ) ) {
+					start = muzzle_pos + distance * playerViewAxis[0];
+				} else {
+					start = ownerBounds.GetCenter();
+				}
+				gameLocal.clip.Translation( tr, start, muzzle_pos, proj->GetPhysics()->GetClipModel(), proj->GetPhysics()->GetClipModel()->GetAxis(), MASK_SHOT_RENDERMODEL, owner );
+				muzzle_pos = tr.endpos;
+			}
+
+			proj->Launch( muzzle_pos, dir, pushVelocity, fuseOffset, launchPower, dmgPower );
+		}
+
+		// toss the brass
+		PostEventMS( &EV_Weapon_EjectBrass, brassDelay );
+	}
+
+	// add the light for the muzzleflash
+	if ( !lightOn ) {
+		MuzzleFlashLight();
+	}
+
+	owner->WeaponFireFeedback( &weaponDef->dict );
+
+	// reset muzzle smoke
+	weaponSmokeStartTime = gameLocal.realClientTime;
+}
+/* Dynamix This isn't a good way to do this but it'll work so whatever
+/*
+================
+idWeapon::Event_LaunchProjectiles_Alt
+================
+*/
+void idWeapon::Event_LaunchProjectiles_Alt( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower ) {
+	idProjectile	*proj;
+	idEntity		*ent;
+	int				i;
+	idVec3			dir;
+	float			ang;
+	float			spin;
+	float			distance;
+	trace_t			tr;
+	idVec3			start;
+	idVec3			muzzle_pos;
+	idBounds		ownerBounds, projBounds;
+
+	if ( IsHidden() ) {
+		return;
+	}
+
+	if ( !projectileDict.GetNumKeyVals() ) {
+		const char *classname = weaponDef->dict.GetString( "classname" );
+		gameLocal.Warning( "No projectile defined on '%s'", classname );
+		return;
+	}
+
+	// avoid all ammo considerations on an MP client
+	if ( !gameLocal.isClient ) {
+
+		// check if we're out of ammo or the clip is empty
+		int ammoAvail = owner->inventory.HasAmmo( ammoType, ammoRequired );
+		if ( !ammoAvail || ( ( clipSize != 0 ) && ( ammoClip <= 0 ) ) ) {
+			return;
+		}
+
+		// if this is a power ammo weapon ( currently only the bfg ) then make sure
+		// we only fire as much power as available in each clip
+		if ( powerAmmo ) {
+			// power comes in as a float from zero to max
+			// if we use this on more than the bfg will need to define the max
+			// in the .def as opposed to just in the script so proper calcs
+			// can be done here.
+			dmgPower = ( int )dmgPower + 1;
+			if ( dmgPower > ammoClip ) {
+				dmgPower = ammoClip;
+			}
+		}
+
+		owner->inventory.UseAmmo( ammoType, ( powerAmmo ) ? dmgPower : ammoRequired );
+		if ( clipSize && ammoRequired ) {
+			ammoClip -= powerAmmo ? dmgPower : 1;
+		}
+
+	}
+
+	if ( !silent_fire ) {
+		// wake up nearby monsters
+		gameLocal.AlertAI( owner );
+	}
+
+	// set the shader parm to the time of last projectile firing,
+	// which the gun material shaders can reference for single shot barrel glows, etc
+	renderEntity.shaderParms[ SHADERPARM_DIVERSITY ]	= gameLocal.random.CRandomFloat();
+	renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ]	= -MS2SEC( gameLocal.realClientTime );
+
+	if ( worldModel.GetEntity() ) {
+		worldModel.GetEntity()->SetShaderParm( SHADERPARM_DIVERSITY, renderEntity.shaderParms[ SHADERPARM_DIVERSITY ] );
+		worldModel.GetEntity()->SetShaderParm( SHADERPARM_TIMEOFFSET, renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] );
+	}
+
+	// calculate the muzzle position
+	if ( barrelJointView != INVALID_JOINT && projectileDict.GetBool( "launchFromBarrel" ) ) {
+		// there is an explicit joint for the muzzle
+		GetGlobalJointTransform( true, barrelJointView, muzzleOrigin, muzzleAxis );
+	} else {
+		// go straight out of the view
+		muzzleOrigin = playerViewOrigin;
+		muzzleAxis = playerViewAxis;
+	}
+
+	// add some to the kick time, incrementally moving repeat firing weapons back
+	if ( kick_endtime < gameLocal.realClientTime ) {
+		kick_endtime = gameLocal.realClientTime;
+	}
+	kick_endtime += muzzle_kick_time;
+	if ( kick_endtime > gameLocal.realClientTime + muzzle_kick_maxtime ) {
+		kick_endtime = gameLocal.realClientTime + muzzle_kick_maxtime;
+	}
+
+	if ( gameLocal.isClient ) {
+
+		// predict instant hit projectiles
+		if ( projectileDict.GetBool( "net_instanthit" ) ) {
+			float spreadRad = DEG2RAD( spread );
+			muzzle_pos = muzzleOrigin + playerViewAxis[ 0 ] * 2.0f;
+			for( i = 0; i < num_projectiles; i++ ) {
+				ang = idMath::Sin( spreadRad * gameLocal.random.RandomFloat() );
+				spin = (float)DEG2RAD( 360.0f ) * gameLocal.random.RandomFloat();
+				dir = playerViewAxis[ 0 ] + playerViewAxis[ 2 ] * ( ang * idMath::Sin( spin ) ) - playerViewAxis[ 1 ] * ( ang * idMath::Cos( spin ) );
+				dir.Normalize();
+				gameLocal.clip.Translation( tr, muzzle_pos, muzzle_pos + dir * 4096.0f, NULL, mat3_identity, MASK_SHOT_RENDERMODEL, owner );
+				if ( tr.fraction < 1.0f ) {
+					idProjectile::ClientPredictionCollide( this, projectileDict, tr, vec3_origin, true );
+				}
+			}
+		}
+
+	} else {
+
+		ownerBounds = owner->GetPhysics()->GetAbsBounds();
+
+		owner->AddProjectilesFired( num_projectiles );
+
+		float spreadRad = DEG2RAD( spread );
+		for( i = 0; i < num_projectiles; i++ ) {
+			ang = idMath::Sin( spreadRad * gameLocal.random.RandomFloat() );
+			spin = (float)DEG2RAD( 360.0f ) * gameLocal.random.RandomFloat();
+			dir = playerViewAxis[ 0 ] + playerViewAxis[ 2 ] * ( ang * idMath::Sin( spin ) ) - playerViewAxis[ 1 ] * ( ang * idMath::Cos( spin ) );
+			dir.Normalize();
+
+			if ( projectileEnt ) {
+				ent = projectileEnt;
+				ent->Show();
+				ent->Unbind();
+				projectileEnt = NULL;
+			} else {
+				gameLocal.SpawnEntityDef( projectileDictAlt, &ent, false );
+			}
+
+			if ( !ent || !ent->IsType( idProjectile::Type ) ) {
+				const char *projectileName = weaponDef->dict.GetString( "def_projectile_alt" );
 				gameLocal.Error( "'%s' is not an idProjectile", projectileName );
 			}
 

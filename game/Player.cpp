@@ -8715,7 +8715,7 @@ void idPlayer::UseForce( void ) {
 	switch( currentForcePower ) {
 		case 0: { //"speed",  just berkserk atm
 			gameLocal.Printf("Speed level %d\n", forceLevel);
-			inventory.GivePowerUp( this, 0, 30000);
+			inventory.GivePowerUp( this, BERSERK, 30000);
 			break;
 		}
 		case 1: { //heal
