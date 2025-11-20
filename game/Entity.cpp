@@ -2490,6 +2490,10 @@ void idEntity::InitDefaultPhysics( const idVec3 &origin, const idMat3 &axis ) {
 					trm.SetupCylinder( bounds, numSides < 3 ? 3 : numSides );
 				} else if ( spawnArgs.GetInt( "cone", "0", numSides ) && numSides > 0 ) {
 					trm.SetupCone( bounds, numSides < 3 ? 3 : numSides );
+				} else if ( spawnArgs.GetInt( "oct", "1", numSides ) ) { // Dynamix, bullets aren't always cones :) octahedron and dodecahedron are fine I guess
+					trm.SetupOctahedron( bounds );
+				} else if ( spawnArgs.GetInt( "dodeca", "1", numSides ) ) { // Dynamix
+					trm.SetupDodecahedron( bounds );
 				} else {
 					trm.SetupBox( bounds );
 				}

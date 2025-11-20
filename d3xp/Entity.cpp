@@ -582,8 +582,8 @@ void idEntity::Spawn( void ) {
 	health = spawnArgs.GetInt( "health" );
 
 	InitDefaultPhysics( origin, axis );
-
-	SetOrigin( origin );
+	idVec3 offset = spawnArgs.GetVector("offset", "0 0 0"); //Dynamix, add adjustable offset so you don't have to reposition ctf flags manually to stop them falling through floor
+	SetOrigin( origin + offset);
 	SetAxis( axis );
 
 	temp = spawnArgs.GetString( "model" );
