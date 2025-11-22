@@ -83,6 +83,9 @@ idProjectile::idProjectile( void ) {
 	lightColor			= vec3_zero;
 	state				= SPAWNED;
 	damagePower			= 1.0f;
+	damageDef			= NULL;		// Dynamix dentonmod
+	tracerEffect 		= NULL; // Dynamix dentonmod
+
 	memset( &projectileFlags, 0, sizeof( projectileFlags ) );
 	memset( &renderLight, 0, sizeof( renderLight ) );
 
@@ -265,6 +268,10 @@ idProjectile::~idProjectile
 idProjectile::~idProjectile() {
 	StopSound( SND_CHANNEL_ANY, false );
 	FreeLightDef();
+	//Dynamix dentonmod beams
+	if ( tracerEffect ) {
+		delete tracerEffect;
+	}
 }
 
 /*
@@ -389,6 +396,10 @@ void idProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 
 
 	thruster.SetPosition( &physicsObj, 0, idVec3( GetPhysics()->GetBounds()[ 0 ].x, 0, 0 ) );
 
+	//Dynamix - dentonmod beams
+	// place this line before checking the fuse- for beam weapons
+	damageDef = gameLocal.FindEntityDef( spawnArgs.GetString( "def_damage" ) );
+
 	if ( !gameLocal.isClient ) {
 		if ( fuse <= 0 ) {
 			// run physics for 1 second
@@ -414,6 +425,18 @@ void idProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 
 	} else {
 		StartSound( "snd_fly", SND_CHANNEL_BODY, 0, false, NULL );
 	}
+
+		//Dynamix dentonmod beams 
+	if( spawnArgs.GetBool( "launchFromBarrel") ) {
+			idStr tracerModel;
+			if( spawnArgs.GetString( "beam_skin", NULL ) != NULL ) {	// See if there's a beam_skin
+				tracerEffect = new dnBarrelLaunchedBeamTracer( this );
+			}
+			else if ( tracerEffect == NULL && spawnArgs.GetString( "model_tracer", "", tracerModel ) ){
+				SetModel( tracerModel );
+			}
+		}
+		//Dynamix end
 
 	smokeFlyTime = 0;
 	const char *smokeName = spawnArgs.GetString( "smoke_fly" );
@@ -451,6 +474,10 @@ void idProjectile::Think( void ) {
 
 	// run physics
 	RunPhysics();
+
+	if( tracerEffect ) {
+		tracerEffect->Think();
+	}
 
 	Present();
 
@@ -510,6 +537,12 @@ bool idProjectile::Collide( const trace_t &collision, const idVec3 &velocity ) {
 		}
 		return false;
 	}
+
+	//Dynamix dentonmod beams
+	if( tracerEffect!= NULL && tracerEffect->IsType( dnRailBeam::Type() ) ) {
+		static_cast<dnRailBeam *>( tracerEffect )->Create( collision.c.point );
+	}
+	//Dynamix end
 
 	// remove projectile when a 'noimpact' surface is hit
 	if ( ( collision.c.material != NULL ) && ( collision.c.material->GetSurfaceFlags() & SURF_NOIMPACT ) ) {
@@ -836,6 +869,13 @@ void idProjectile::Explode( const trace_t &collision, idEntity *ignore ) {
 	}
 
 	if ( fxname && *fxname ) {
+
+		//Dynamix dentonmod beams stuff
+		if( tracerEffect!= NULL && tracerEffect->IsType( dnBeamTracer::Type() ) ){ // check whether we used beam model as tracer
+			memset( &renderEntity, 0, sizeof(renderEntity) );
+		}
+		//Dynamix end
+
 		SetModel( fxname );
 		renderEntity.shaderParms[SHADERPARM_RED] =
 		renderEntity.shaderParms[SHADERPARM_GREEN] =
@@ -870,6 +910,19 @@ void idProjectile::Explode( const trace_t &collision, idEntity *ignore ) {
 	fl.takedamage = false;
 	physicsObj.SetContents( 0 );
 	physicsObj.PutToRest();
+
+	//Dynamix dentonmod beam stuff
+	if ( tracerEffect )
+	{
+		if ( tracerEffect->IsType( dnSpeedTracer::Type() ) && !static_cast<dnSpeedTracer *>(tracerEffect)->IsDead() ) {
+			BecomeActive( TH_UPDATEPARTICLES );
+		}
+		else if( !tracerEffect->IsType( dnRailBeam::Type() ) ) {
+			delete tracerEffect;
+			tracerEffect = NULL;
+		}
+	}
+	//Dynamix dentonmod beam stuff
 
 	state = EXPLODED;
 

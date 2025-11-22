@@ -33,6 +33,9 @@ If you have questions concerning this license or the applicable additional terms
 #include "physics/Force_Constant.h"
 #include "Entity.h"
 
+//Dynamix
+#include "tracer.h"
+
 /*
 ===============================================================================
 
@@ -82,6 +85,9 @@ public :
 	virtual void			ReadFromSnapshot( const idBitMsgDelta &msg );
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
 
+	//Dynamix
+	void					setTracerEffect( dnTracerEffect *effect) { tracerEffect = effect; }
+
 protected:
 	idEntityPtr<idEntity>	owner;
 
@@ -92,6 +98,9 @@ protected:
 		bool				isTracer					: 1;
 		bool				noSplashDamage				: 1;
 	} projectileFlags;
+
+	//Dynamix
+	dnTracerEffect *tracerEffect;
 
 	float					thrust;
 	int						thrust_end;
@@ -123,6 +132,7 @@ protected:
 
 private:
 	bool					netSyncPhysics;
+	const idDeclEntityDef	*damageDef; // Dynamix, dentonmod stuff
 
 	void					AddDefaultDamageEffect( const trace_t &collision, const idVec3 &velocity );
 

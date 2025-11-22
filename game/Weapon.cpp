@@ -2927,6 +2927,9 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 	idVec3			start;
 	idVec3			muzzle_pos;
 	idBounds		ownerBounds, projBounds;
+	//Dynamix - dentonmod beam effect stuff
+	bool 			barrelLaunch;
+	bool			tracer, beam;
 
 	if ( IsHidden() ) {
 		return;
@@ -2981,11 +2984,23 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 		worldModel.GetEntity()->SetShaderParm( SHADERPARM_DIVERSITY, renderEntity.shaderParms[ SHADERPARM_DIVERSITY ] );
 		worldModel.GetEntity()->SetShaderParm( SHADERPARM_TIMEOFFSET, renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] );
 	}
+	//Dynamix dentonmod beam stuff
+	idVec3 view_pos = playerViewOrigin + playerViewAxis[ 0 ] * 2.0f; // Muzzle pos for translation clip model only-- For barrel Launched projectiles
+
+	float muzzleDistFromView;
+	float traceDist, muzzleToTargetDist;
+	idVec3 muzzleDir;
+
+	beam			= projectileDict.GetFloat( "fuse" ) <= 0 || projectileDict.GetBool( "rail_beam");
+	tracer			= !beam && projectileDict.GetBool( "tracers" ) && (projectileDict.GetFloat("tracer_probability", "1.0") > gameLocal.random.RandomFloat()); 
+	barrelLaunch	= projectileDict.GetBool( "launchFromBarrel" );
+	//End Dynamix
 
 	// calculate the muzzle position
 	if ( barrelJointView != INVALID_JOINT && projectileDict.GetBool( "launchFromBarrel" ) ) {
 		// there is an explicit joint for the muzzle
 		GetGlobalJointTransform( true, barrelJointView, muzzleOrigin, muzzleAxis );
+		muzzle_pos = muzzleOrigin;
 	} else {
 		// go straight out of the view
 		muzzleOrigin = playerViewOrigin;
@@ -3032,6 +3047,34 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 			dir = playerViewAxis[ 0 ] + playerViewAxis[ 2 ] * ( ang * idMath::Sin( spin ) ) - playerViewAxis[ 1 ] * ( ang * idMath::Cos( spin ) );
 			dir.Normalize();
 
+			//Dentonmod Dynamix
+			if ( barrelLaunch || tracer || beam ) { // Do not execute this part unless projectile is barrel launched or has a tracer effect.
+
+				gameLocal.clip.Translation( tr, view_pos, view_pos + dir * 4096.0f, NULL, mat3_identity, MASK_SHOT_RENDERMODEL, owner );
+
+				//traceDist = (tr.endpos - view_pos).Length();
+				traceDist = (tr.endpos - view_pos).LengthSqr(); // This is faster
+	
+				if ( traceDist > muzzleDistFromView ) { // make sure the muzzle is not to close to walls etc
+					if ( barrelLaunch ) {
+						dir = tr.endpos - muzzle_pos;    
+						dir.Normalize();
+					}
+					else if ( tracer ) { 
+						muzzleDir = tr.endpos - muzzle_pos;
+						//	muzzleToTargetDist = muzzleDir.Length();
+						muzzleToTargetDist = muzzleDir.LengthSqr(); // This is faster
+						muzzleDir.Normalize();
+					}
+				} else { 
+				if ( tracer || beam ) {	// Dont do tracers when weapon is too close to walls, objects etc.
+					tracer = false;
+					beam = false;
+				}
+			}
+		}
+		//Dynamix end
+
 			if ( projectileEnt ) {
 				ent = projectileEnt;
 				ent->Show();
@@ -3073,6 +3116,33 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 				gameLocal.clip.Translation( tr, start, muzzle_pos, proj->GetPhysics()->GetClipModel(), proj->GetPhysics()->GetClipModel()->GetAxis(), MASK_SHOT_RENDERMODEL, owner );
 				muzzle_pos = tr.endpos;
 			}
+
+			//Dynamix
+			if ( tracer ) { 
+				/*		if ( traceDist <= muzzleToTargetDist ) // Ideally, this should never happen
+					gameLocal.Printf ( " Unpredicted traceDistance in idWeapon::Event_LaunchProjectiles " );
+				*/
+				bool beamTracer = (projectileDict.GetString( "beam_skin", NULL ) != NULL);
+				float tracer_speed = 0;
+				if ( tracer_speed != 0.0f ) {
+					if ( beamTracer ) { // Check whether it's a beamTracer
+						proj->setTracerEffect( new dnBeamSpeedTracer(proj, tracer_speed, muzzleToTargetDist * idMath::RSqrt( muzzleToTargetDist ), muzzle_pos, muzzleDir.ToMat3()) );
+					} else {
+						proj->setTracerEffect( new dnSpeedTracer(proj, tracer_speed, muzzleToTargetDist * idMath::RSqrt( muzzleToTargetDist ), muzzle_pos, muzzleDir.ToMat3()) );
+					}
+				} else {
+					if ( beamTracer ) {
+						proj->setTracerEffect( new dnBeamTracer(proj, traceDist/muzzleToTargetDist, view_pos, muzzle_pos, muzzleDir.ToMat3()) );
+					} else {
+						proj->setTracerEffect( new dnTracer(proj, traceDist/muzzleToTargetDist, view_pos, muzzle_pos, muzzleDir.ToMat3()) );
+					}
+				}
+			} else if( beam ) {
+				gameLocal.DPrintf("Else if Beam");
+				proj->setTracerEffect( new dnRailBeam(proj, muzzle_pos) );
+			}
+				//Dynamix End
+
 
 			proj->Launch( muzzle_pos, dir, pushVelocity, fuseOffset, launchPower, dmgPower );
 		}
