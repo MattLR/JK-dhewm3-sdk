@@ -427,7 +427,8 @@ void idProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 
 	}
 
 		//Dynamix dentonmod beams 
-	if( spawnArgs.GetBool( "launchFromBarrel") ) {
+		//Dynamix, this was breaking launchfrombarrel 1 beam weapons, I have no idea what this is doing 
+	/*if( spawnArgs.GetBool( "launchFromBarrel") ) {
 			idStr tracerModel;
 			if( spawnArgs.GetString( "beam_skin", NULL ) != NULL ) {	// See if there's a beam_skin
 				tracerEffect = new dnBarrelLaunchedBeamTracer( this );
@@ -435,7 +436,7 @@ void idProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 
 			else if ( tracerEffect == NULL && spawnArgs.GetString( "model_tracer", "", tracerModel ) ){
 				SetModel( tracerModel );
 			}
-		}
+		}*/
 		//Dynamix end
 
 	smokeFlyTime = 0;

@@ -3161,6 +3161,7 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 	// reset muzzle smoke
 	weaponSmokeStartTime = gameLocal.realClientTime;
 }
+
 /* Dynamix This isn't a good way to do this but it'll work so whatever
 /*
 ================
