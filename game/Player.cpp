@@ -984,6 +984,7 @@ idPlayer::idPlayer() {
 	weapon					= NULL;
 
 	hud						= NULL;
+	zoomGui					= NULL;
 	objectiveSystem			= NULL;
 	objectiveSystemOpen		= false;
 
@@ -1220,6 +1221,7 @@ void idPlayer::Init( void ) {
 
 	noclip					= false;
 	godmode					= false;
+	zoomed 					= false;
 
 	oldButtons				= 0;
 	oldFlags				= 0;
@@ -1476,8 +1478,13 @@ void idPlayer::Spawn( void ) {
 		// load HUD
 		if ( gameLocal.isMultiplayer ) {
 			hud = uiManager->FindGui( "guis/mphud.gui", true, false, true );
+			zoomGui  = uiManager->FindGui( "guis/railgun_scope.gui", true, false, true );
+			//zoomGui  = uiManager->FindGui ( (weapon.GetEntity()->spawnArgs.GetString(( "gui_zoom", "" ))), true );
+			//zoomGui  = uiManager->FindGui ( spawnArgs.GetString ( "gui_zoom", "" ), true );
 		} else if ( spawnArgs.GetString( "hud", "", temp ) ) {
 			hud = uiManager->FindGui( temp, true, false, true );
+			zoomGui  = uiManager->FindGui( "guis/railgun_scope.gui", true, false, true );
+			//zoomGui  = uiManager->FindGui ( (weapon.GetEntity()->spawnArgs.GetString(( "gui_zoom", "" ))), true );
 		}
 		if ( hud ) {
 			hud->Activate( true, gameLocal.time );
@@ -2696,6 +2703,10 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 	weapon.GetEntity()->UpdateGUI();
 
 	_hud->Redraw( gameLocal.realClientTime );
+	if (zoomed) {
+	zoomGui->Activate(true, gameLocal.time);
+	zoomGui->Redraw(gameLocal.time);
+	}
 
 	// weapon targeting crosshair
 	if ( !GuiActive() ) {
@@ -6406,8 +6417,16 @@ void idPlayer::Think( void ) {
 	if ( ( usercmd.buttons ^ oldCmd.buttons ) & BUTTON_ZOOM ) {
 		if ( ( usercmd.buttons & BUTTON_ZOOM ) && weapon.GetEntity() ) {
 			zoomFov.Init( gameLocal.time, 200.0f, CalcFov( false ), weapon.GetEntity()->GetZoomFov() );
+			zoomed = true;
+		/*
+		if ( player->scoreBoardOpen || gameState == GAMEREVIEW ) {
+		if ( !playerState[ player->entityNumber ].scoreBoardUp ) {
+			scoreBoard->Activate( true, gameLocal.time );
+			playerState[ player->entityNumber ].scoreBoardUp = true;
+		}*/
 		} else {
 			zoomFov.Init( gameLocal.time, 200.0f, zoomFov.GetCurrentValue( gameLocal.time ), DefaultFov() );
+			zoomed = false;
 		}
 	}
 

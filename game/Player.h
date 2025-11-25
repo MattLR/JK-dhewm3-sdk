@@ -266,6 +266,7 @@ public:
 
 	idEntityPtr<idWeapon>	weapon;
 	idUserInterface *		hud;				// MP: is NULL if not local player
+	idUserInterface *		zoomGui;
 	idUserInterface *		objectiveSystem;
 	bool					objectiveSystemOpen;
 
@@ -319,6 +320,7 @@ public:
 	bool					lastManPresent;		// true when player was in when game started (spectators can't join a running LMS)
 	bool					isLagged;			// replicated from server, true if packets haven't been received from client.
 	bool					isChatting;			// replicated from server, true if the player is chatting.
+	bool					zoomed; 			//zoom testing Dynamix
 
 	// timers
 	int						minRespawnTime;		// can respawn when time > this, force after g_forcerespawn
