@@ -5672,6 +5672,9 @@ void idPlayer::UseVehicle( void ) {
 		Show();
 		static_cast<idAFEntity_Vehicle*>(GetBindMaster())->Use( this );
 	} else {
+		// Trace to see if we hit something interesting, added the trigger and character stuff
+		// This should be a clip like they do in updatefocus in hindsight, if I'm doing that properly I should move those up to the player
+		// but I'll just redo all the stuff in here probaly
 		start = GetEyePosition();
 		end = start + viewAngles.ToForward() * 180.0f;
 		gameLocal.clip.TracePoint( trace, start, end, MASK_ALL, this );
@@ -5684,9 +5687,34 @@ void idPlayer::UseVehicle( void ) {
 				ent->Signal( SIG_TRIGGER );
 				ent->ProcessEvent( &EV_Activate, gameLocal.GetLocalPlayer() );
 				ent->TriggerGuis();
-				//focusCharacter->TalkTo( this );
 			} else if (ent && ent->IsType( idAI::Type) && focusCharacter) {
-				focusCharacter->TalkTo( this );
+				// FIXME This doesn't seem like the right way to do any of this, need to look into it dynamix
+
+				idStr objectType;
+				objectType = ent->scriptObject.GetTypeName();
+
+				if (objectType != "combined") {
+					
+				}
+				// Should probably just do what they do and set an AI_INTERACT bool but this seems way easier to me
+				const function_t	*func;
+				idThread			*thread;
+				const char			*funcName;
+
+				funcName = "doInteraction";
+				// Calling scriptobject function directly, I'm sure there's another way that makes more sense
+				func = ent->scriptObject.GetFunction( funcName );
+				if ( !func ) {
+					focusCharacter->TalkTo( this );
+					return;
+				}
+
+
+				// create a thread and call the function
+				// Do I need a thread?
+				thread = new idThread();
+				thread->CallFunction( ent, func, true );
+				thread->Start();
 			}
 		}
 	}
@@ -5909,12 +5937,14 @@ idPlayer::AdjustBodyAngles
 void idPlayer::AdjustBodyAngles( void ) {
 	idMat3	lookAxis;
 	idMat3	legsAxis;
+	idMat3	torsoAxis;
 	bool	blend;
 	float	diff;
 	float	frac;
 	float	upBlend;
 	float	forwardBlend;
 	float	downBlend;
+	float torsoYaw;
 
 	if ( health < 0 ) {
 		return;
@@ -5922,6 +5952,7 @@ void idPlayer::AdjustBodyAngles( void ) {
 
 	blend = true;
 
+	torsoYaw = 0.0f;
 	if ( !physicsObj.HasGroundContacts() ) {
 		idealLegsYaw = 0.0f;
 		legsForward = true;
@@ -5944,6 +5975,7 @@ void idPlayer::AdjustBodyAngles( void ) {
 		legsForward = true;
 		diff = idMath::Fabs( idealLegsYaw - legsYaw );
 		idealLegsYaw = idealLegsYaw - idMath::AngleNormalize180( viewAngles.yaw - oldViewYaw );
+		torsoYaw =  idMath::AngleNormalize180( viewAngles.yaw - oldViewYaw ) - legsYaw;
 		if ( diff < 0.1f ) {
 			legsYaw = idealLegsYaw;
 			blend = false;
@@ -5968,11 +6000,16 @@ void idPlayer::AdjustBodyAngles( void ) {
 		blend = true;
 	}
 
+
 	if ( blend ) {
 		legsYaw = legsYaw * 0.9f + idealLegsYaw * 0.1f;
 	}
+	//torsoYaw =  idMath::AngleNormalize180( viewAngles.yaw - legsYaw); //viewAngles.yaw + 
 	legsAxis = idAngles( 0.0f, legsYaw, 0.0f ).ToMat3();
+	torsoAxis = idAngles( 0.0f, torsoYaw, 0.0f ).ToMat3();
 	animator.SetJointAxis( hipJoint, JOINTMOD_WORLD, legsAxis );
+	animator.SetJointAxis( chestJoint, JOINTMOD_WORLD, torsoAxis );
+
 
 	// calculate the blending between down, straight, and up
 	frac = viewAngles.pitch / 90.0f;

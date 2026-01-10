@@ -3321,13 +3321,47 @@ int idGameLocal::GetTargets( const idDict &args, idList< idEntityPtr<idEntity> >
 
 	refLength = strlen( ref );
 	num = args.GetNumKeyVals();
-	for( i = 0; i < num; i++ ) {
-
+	for ( i = 0; i < num; i++ ) {
+		
 		arg = args.GetKeyVal( i );
-		if ( arg->GetKey().Icmpn( ref, refLength ) == 0 ) {
 
-			ent = FindEntity( arg->GetValue() );
-			if ( ent ) {
+		// must start with ref
+		if ( arg->GetKey().Icmpn( ref, refLength ) != 0 ) {
+			continue;
+		}
+
+		// IMPORTANT: reject keys like "targetname"
+		const char *key = arg->GetKey().c_str();
+		if ( key[refLength] != '\0' && !isdigit( key[refLength] ) ) {
+			continue;
+		}
+
+		// -------------------------------------------------
+		// original behavior: resolve by entity name
+		// -------------------------------------------------
+		ent = FindEntity( arg->GetValue() );
+		if ( ent ) {
+			idEntityPtr<idEntity> &entityPtr = list.Alloc();
+			entityPtr = ent;
+			continue;
+		}
+
+		// -------------------------------------------------
+		// added behavior: resolve by targetname (lookup only)
+		// -------------------------------------------------
+		for ( ent = spawnedEntities.Next(); ent != NULL; ent = ent->spawnNode.Next() ) {
+
+			// prevent self-targeting
+			if ( &ent->spawnArgs == &args ) {
+				continue;
+			}
+
+			const char *targetName = ent->spawnArgs.GetString( "targetname" );
+			if ( !targetName || !targetName[0] ) {
+				continue;
+			}
+
+			if ( idStr::Icmp( targetName, arg->GetValue() ) == 0 ) {
 				idEntityPtr<idEntity> &entityPtr = list.Alloc();
 				entityPtr = ent;
 			}

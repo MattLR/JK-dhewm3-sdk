@@ -546,7 +546,10 @@ void idDamagable::BecomeBroken( idEntity *activator ) {
 	renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = -MS2SEC( gameLocal.time );
 
 	ActivateTargets( activator );
-
+	//Temp for testing FIXME dynamix
+	Hide();
+	GetPhysics()->SetContents( 0 );
+	
 	if ( spawnArgs.GetBool( "hideWhenBroken" ) ) {
 		Hide();
 		PostEventMS( &EV_RestoreDamagable, nextTriggerTime - gameLocal.time );
@@ -1404,7 +1407,9 @@ idStaticEntity::Spawn
 void idStaticEntity::Spawn( void ) {
 	bool solid;
 	bool hidden;
+	int spawnflags;
 
+	spawnArgs.GetInt("spawnflags", "0", spawnflags );
 	// an inline static model will not do anything at all
 	if ( spawnArgs.GetBool( "inline" ) || gameLocal.world->spawnArgs.GetBool( "inlineAllStatics" ) ) {
 		Hide();
@@ -1413,6 +1418,11 @@ void idStaticEntity::Spawn( void ) {
 
 	solid = spawnArgs.GetBool( "solid" );
 	hidden = spawnArgs.GetBool( "hide" );
+	//temp for testing dynamix FIXME
+	if (spawnflags & 1) {
+		hidden = true;
+		fl.hidden = true;
+	}
 
 	if ( solid && !hidden ) {
 		GetPhysics()->SetContents( CONTENTS_SOLID );
@@ -1533,13 +1543,13 @@ void idStaticEntity::Event_Activate( idEntity *activator ) {
 	active = !active;
 
 	const idKeyValue *kv = spawnArgs.FindKey( "hide" );
-	if ( kv ) {
+	//if ( kv || kv2 ) { FIXME dynamix temp for testing before I make a new class for usables
 		if ( IsHidden() ) {
 			Show();
 		} else {
 			Hide();
 		}
-	}
+	//}
 
 	renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = -MS2SEC( spawnTime );
 	renderEntity.shaderParms[5] = active;

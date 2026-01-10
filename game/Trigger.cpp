@@ -321,10 +321,12 @@ so, the basic time between firing is a random time between
 ================
 */
 void idTrigger_Multi::Spawn( void ) {
+	int spawnflags;
 	spawnArgs.GetFloat( "wait", "0.5", wait );
 	spawnArgs.GetFloat( "random", "0", random );
 	spawnArgs.GetFloat( "delay", "0", delay );
 	spawnArgs.GetFloat( "random_delay", "0", random_delay );
+	spawnArgs.GetInt("spawnflags", "0", spawnflags );
 
 	if ( random && ( random >= wait ) && ( wait >= 0 ) ) {
 		random = wait - 1;
@@ -344,7 +346,7 @@ void idTrigger_Multi::Spawn( void ) {
 	if ( spawnArgs.GetBool( "anyTouch" ) ) {
 		touchClient = true;
 		touchOther = true;
-	} else if ( spawnArgs.GetBool( "noTouch" ) ) {
+	} else if ( spawnArgs.GetBool( "noTouch" ) || (spawnflags & 4) ) {
 		touchClient = false;
 		touchOther = false;
 	} else if ( spawnArgs.GetBool( "noClient" ) ) {
