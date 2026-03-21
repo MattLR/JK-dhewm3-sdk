@@ -47,7 +47,7 @@ const int BUTTON_ZOOM			= BIT(2);
 const int BUTTON_SCORES			= BIT(3);
 const int BUTTON_MLOOK			= BIT(4);
 const int BUTTON_5				= BIT(5); //altfire
-const int BUTTON_6				= BIT(6);
+const int BUTTON_6				= BIT(6); //Force
 const int BUTTON_7				= BIT(7);
 
 // usercmd_t->impulse commands

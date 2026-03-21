@@ -312,6 +312,9 @@ public:
 							// notifies this entity that is has been killed
 	virtual void			Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 
+	//Dynamix
+	virtual	void			ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, const char *forceDefName, const int forceLevel, const int location );
+
 	// scripting
 	virtual bool			ShouldConstructScriptObjectAtSpawn( void ) const;
 	virtual idThread *		ConstructScriptObject( void );

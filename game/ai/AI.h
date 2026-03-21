@@ -158,6 +158,8 @@ extern const idEventDef AI_EnableGravity;
 extern const idEventDef AI_DisableGravity;
 extern const idEventDef AI_TriggerParticles;
 extern const idEventDef AI_RandomPath;
+//Dynamix
+extern const idEventDef AI_EndMindTrick;
 
 class idPathCorner;
 
@@ -460,6 +462,10 @@ protected:
 	virtual bool			Pain( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 	virtual void			Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 
+	//Dynamix
+	virtual	void			ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, const char *forceDefName, const int forceLevel, const int location );
+
+
 	// navigation
 	void					KickObstacles( const idVec3 &dir, float force, idEntity *alwaysKick );
 	bool					ReachedPos( const idVec3 &pos, const moveCommand_t moveCommand ) const;
@@ -664,6 +670,8 @@ protected:
 	void					Event_CanReachEntity( idEntity *ent );
 	void					Event_CanReachEnemy( void );
 	void					Event_GetReachableEntityPosition( idEntity *ent );
+	//Dynamix
+	void					Event_EndMindTrick( void );
 };
 
 class idCombatNode : public idEntity {

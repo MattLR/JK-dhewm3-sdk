@@ -21,6 +21,19 @@ set(src_game_mod
 	# (that you added to the ones already existant in the SDK/in dhewm3)
 	# like "game/MyFile.cpp" (without quotes, one file per line)
 	game/Tracer.cpp
+	game/Force.cpp
+	game/force/Absorb.cpp
+	game/force/Drain.cpp
+	game/force/Grip.cpp
+	game/force/Heal.cpp
+	game/force/Lightning.cpp
+	game/force/Protection.cpp
+	game/force/Pull.cpp
+	game/force/Push.cpp
+	game/force/Rage.cpp
+	game/force/Sense.cpp
+	game/force/Speed.cpp
+	game/force/Trick.cpp
 )
 
 set(src_d3xp_mod

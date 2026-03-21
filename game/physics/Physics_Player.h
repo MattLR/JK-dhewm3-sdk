@@ -99,6 +99,9 @@ public:
 	bool					IsCrouching( void ) const;
 	bool					OnLadder( void ) const;
 	const idVec3 &			PlayerGetOrigin( void ) const;	// != GetOrigin
+	//Dynamix 
+	bool 					canForceJump;
+	int						forceJumpTicks;
 
 public:	// common physics interface
 	bool					Evaluate( int timeStepMSec, int endTimeMSec );

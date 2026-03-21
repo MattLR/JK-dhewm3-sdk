@@ -37,11 +37,11 @@ If you have questions concerning this license or the applicable additional terms
 #include "SmokeParticles.h"
 #include "WorldSpawn.h"
 
-#include "Weapon.h"
+#include "Force.h"
 
 /***********************************************************************
 
-  idWeapon
+  jkSimpleForcePower
 
 ***********************************************************************/
 
@@ -69,59 +69,62 @@ const idEventDef EV_Weapon_LaunchProjectiles( "launchProjectiles", "dffff" );
 const idEventDef EV_Weapon_LaunchProjectiles_Alt( "launchProjectilesAlt", "dffff" );
 const idEventDef EV_Weapon_CreateProjectile( "createProjectile", NULL, 'e' );
 const idEventDef EV_Weapon_EjectBrass( "ejectBrass" );
-const idEventDef EV_Weapon_Melee( "melee", NULL, 'd' );
 const idEventDef EV_Weapon_GetWorldModel( "getWorldModel", NULL, 'e' );
 const idEventDef EV_Weapon_AllowDrop( "allowDrop", "d" );
 const idEventDef EV_Weapon_AutoReload( "autoReload", NULL, 'f' );
 const idEventDef EV_Weapon_NetReload( "netReload" );
 const idEventDef EV_Weapon_IsInvisible( "isInvisible", NULL, 'f' );
 const idEventDef EV_Weapon_NetEndReload( "netEndReload" );
-const idEventDef EV_Weapon_StartAutoMelee( "startAutoMelee", "fd" );
-const idEventDef EV_Weapon_StopAutoMelee( "stopAutoMelee" );
+const idEventDef EV_Force_DoForcePower( "doForcePower" );
+const idEventDef EV_Force_UseForcePoints( "useForcePoints", "fdd" );
+
 
 //
 // class def
 //
-CLASS_DECLARATION( idAnimatedEntity, idWeapon )
-	EVENT( EV_Weapon_Clear,						idWeapon::Event_Clear )
-	EVENT( EV_Weapon_GetOwner,					idWeapon::Event_GetOwner )
-	EVENT( EV_Weapon_State,						idWeapon::Event_WeaponState )
-	EVENT( EV_Weapon_WeaponReady,				idWeapon::Event_WeaponReady )
-	EVENT( EV_Weapon_WeaponOutOfAmmo,			idWeapon::Event_WeaponOutOfAmmo )
-	EVENT( EV_Weapon_WeaponReloading,			idWeapon::Event_WeaponReloading )
-	EVENT( EV_Weapon_WeaponHolstered,			idWeapon::Event_WeaponHolstered )
-	EVENT( EV_Weapon_WeaponRising,				idWeapon::Event_WeaponRising )
-	EVENT( EV_Weapon_WeaponLowering,			idWeapon::Event_WeaponLowering )
-	EVENT( EV_Weapon_UseAmmo,					idWeapon::Event_UseAmmo )
-	EVENT( EV_Weapon_AddToClip,					idWeapon::Event_AddToClip )
-	EVENT( EV_Weapon_AmmoInClip,				idWeapon::Event_AmmoInClip )
-	EVENT( EV_Weapon_AmmoAvailable,				idWeapon::Event_AmmoAvailable )
-	EVENT( EV_Weapon_TotalAmmoCount,			idWeapon::Event_TotalAmmoCount )
-	EVENT( EV_Weapon_ClipSize,					idWeapon::Event_ClipSize )
-	EVENT( AI_PlayAnim,							idWeapon::Event_PlayAnim )
-	EVENT( AI_PlayCycle,						idWeapon::Event_PlayCycle )
-	EVENT( AI_SetBlendFrames,					idWeapon::Event_SetBlendFrames )
-	EVENT( AI_GetBlendFrames,					idWeapon::Event_GetBlendFrames )
-	EVENT( AI_AnimDone,							idWeapon::Event_AnimDone )
-	EVENT( EV_Weapon_Next,						idWeapon::Event_Next )
-	EVENT( EV_SetSkin,							idWeapon::Event_SetSkin )
-	EVENT( EV_Weapon_Flashlight,				idWeapon::Event_Flashlight )
-	EVENT( EV_Light_GetLightParm,				idWeapon::Event_GetLightParm )
-	EVENT( EV_Light_SetLightParm,				idWeapon::Event_SetLightParm )
-	EVENT( EV_Light_SetLightParms,				idWeapon::Event_SetLightParms )
-	EVENT( EV_Weapon_LaunchProjectiles,			idWeapon::Event_LaunchProjectiles )
-	EVENT( EV_Weapon_LaunchProjectiles_Alt,		idWeapon::Event_LaunchProjectiles_Alt )
-	EVENT( EV_Weapon_CreateProjectile,			idWeapon::Event_CreateProjectile )
-	EVENT( EV_Weapon_EjectBrass,				idWeapon::Event_EjectBrass )
-	EVENT( EV_Weapon_Melee,						idWeapon::Event_Melee )
-	EVENT( EV_Weapon_GetWorldModel,				idWeapon::Event_GetWorldModel )
-	EVENT( EV_Weapon_AllowDrop,					idWeapon::Event_AllowDrop )
-	EVENT( EV_Weapon_AutoReload,				idWeapon::Event_AutoReload )
-	EVENT( EV_Weapon_NetReload,					idWeapon::Event_NetReload )
-	EVENT( EV_Weapon_IsInvisible,				idWeapon::Event_IsInvisible )
-	EVENT( EV_Weapon_NetEndReload,				idWeapon::Event_NetEndReload )
-	EVENT( EV_Weapon_StartAutoMelee,			idWeapon::Event_StartAutoMelee )
-	EVENT( EV_Weapon_StopAutoMelee,			    idWeapon::Event_StopAutoMelee )
+CLASS_DECLARATION( idAnimatedEntity, jkSimpleForcePower )
+	EVENT( EV_Weapon_Clear,						jkSimpleForcePower::Event_Clear )
+	EVENT( EV_Weapon_GetOwner,					jkSimpleForcePower::Event_GetOwner )
+	EVENT( EV_Weapon_State,						jkSimpleForcePower::Event_WeaponState )
+	EVENT( EV_Weapon_WeaponReady,				jkSimpleForcePower::Event_WeaponReady )
+	EVENT( EV_Weapon_WeaponOutOfAmmo,			jkSimpleForcePower::Event_WeaponOutOfAmmo )
+	EVENT( EV_Weapon_WeaponReloading,			jkSimpleForcePower::Event_WeaponReloading )
+	EVENT( EV_Weapon_WeaponHolstered,			jkSimpleForcePower::Event_WeaponHolstered )
+	EVENT( EV_Weapon_WeaponRising,				jkSimpleForcePower::Event_WeaponRising )
+	EVENT( EV_Weapon_WeaponLowering,			jkSimpleForcePower::Event_WeaponLowering )
+	EVENT( EV_Weapon_UseAmmo,					jkSimpleForcePower::Event_UseAmmo )
+	EVENT( EV_Weapon_AddToClip,					jkSimpleForcePower::Event_AddToClip )
+	EVENT( EV_Weapon_AmmoInClip,				jkSimpleForcePower::Event_AmmoInClip )
+	EVENT( EV_Weapon_AmmoAvailable,				jkSimpleForcePower::Event_AmmoAvailable )
+	EVENT( EV_Weapon_TotalAmmoCount,			jkSimpleForcePower::Event_TotalAmmoCount )
+	EVENT( EV_Weapon_ClipSize,					jkSimpleForcePower::Event_ClipSize )
+	EVENT( AI_PlayAnim,							jkSimpleForcePower::Event_PlayAnim )
+	EVENT( AI_PlayCycle,						jkSimpleForcePower::Event_PlayCycle )
+	EVENT( AI_SetBlendFrames,					jkSimpleForcePower::Event_SetBlendFrames )
+	EVENT( AI_GetBlendFrames,					jkSimpleForcePower::Event_GetBlendFrames )
+	EVENT( AI_AnimDone,							jkSimpleForcePower::Event_AnimDone )
+	EVENT( EV_Weapon_Next,						jkSimpleForcePower::Event_Next )
+	EVENT( EV_SetSkin,							jkSimpleForcePower::Event_SetSkin )
+	EVENT( EV_Weapon_Flashlight,				jkSimpleForcePower::Event_Flashlight )
+	EVENT( EV_Light_GetLightParm,				jkSimpleForcePower::Event_GetLightParm )
+	EVENT( EV_Light_SetLightParm,				jkSimpleForcePower::Event_SetLightParm )
+	EVENT( EV_Light_SetLightParms,				jkSimpleForcePower::Event_SetLightParms )
+	EVENT( EV_Weapon_LaunchProjectiles,			jkSimpleForcePower::Event_LaunchProjectiles )
+	EVENT( EV_Weapon_LaunchProjectiles_Alt,		jkSimpleForcePower::Event_LaunchProjectiles_Alt )
+	EVENT( EV_Weapon_CreateProjectile,			jkSimpleForcePower::Event_CreateProjectile )
+	EVENT( EV_Weapon_EjectBrass,				jkSimpleForcePower::Event_EjectBrass )
+	EVENT( EV_Weapon_GetWorldModel,				jkSimpleForcePower::Event_GetWorldModel )
+	EVENT( EV_Weapon_AllowDrop,					jkSimpleForcePower::Event_AllowDrop )
+	EVENT( EV_Weapon_AutoReload,				jkSimpleForcePower::Event_AutoReload )
+	EVENT( EV_Weapon_NetReload,					jkSimpleForcePower::Event_NetReload )
+	EVENT( EV_Weapon_IsInvisible,				jkSimpleForcePower::Event_IsInvisible )
+	EVENT( EV_Weapon_NetEndReload,				jkSimpleForcePower::Event_NetEndReload )
+	EVENT( EV_Force_DoForcePower,				jkSimpleForcePower::Event_DoForcePower )
+	EVENT( EV_Force_UseForcePoints,				jkSimpleForcePower::Event_UseForcePoints )
+END_CLASS
+
+CLASS_DECLARATION( jkSimpleForcePower, jkForcePower )
+
 END_CLASS
 
 /***********************************************************************
@@ -132,10 +135,10 @@ END_CLASS
 
 /*
 ================
-idWeapon::idWeapon()
+jkSimpleForcePower::jkSimpleForcePower()
 ================
 */
-idWeapon::idWeapon() {
+jkSimpleForcePower::jkSimpleForcePower() {
 	owner					= NULL;
 	worldModel				= NULL;
 	weaponDef				= NULL;
@@ -166,10 +169,10 @@ idWeapon::idWeapon() {
 
 /*
 ================
-idWeapon::~idWeapon()
+jkSimpleForcePower::~jkSimpleForcePower()
 ================
 */
-idWeapon::~idWeapon() {
+jkSimpleForcePower::~jkSimpleForcePower() {
 	Clear();
 	delete worldModel.GetEntity();
 }
@@ -177,10 +180,10 @@ idWeapon::~idWeapon() {
 
 /*
 ================
-idWeapon::Spawn
+jkSimpleForcePower::Spawn
 ================
 */
-void idWeapon::Spawn( void ) {
+void jkSimpleForcePower::Spawn( void ) {
 	if ( !gameLocal.isClient ) {
 		// setup the world model
 		worldModel = static_cast< idAnimatedEntity * >( gameLocal.SpawnEntityType( idAnimatedEntity::Type, NULL ) );
@@ -194,39 +197,39 @@ void idWeapon::Spawn( void ) {
 
 /*
 ================
-idWeapon::SetOwner
+jkSimpleForcePower::SetOwner
 
 Only called at player spawn time, not each weapon switch
 ================
 */
-void idWeapon::SetOwner( idPlayer *_owner ) {
+void jkSimpleForcePower::SetOwner( idPlayer *_owner ) {
 	assert( !owner );
 	owner = _owner;
-	SetName( va( "%s_weapon", owner->name.c_str() ) );
+	SetName( va( "%s_fp", owner->name.c_str() ) );
 
 	if ( worldModel.GetEntity() ) {
-		worldModel.GetEntity()->SetName( va( "%s_weapon_worldmodel", owner->name.c_str() ) );
+		worldModel.GetEntity()->SetName( va( "%s_fp_worldmodel", owner->name.c_str() ) );
 	}
 }
 
 /*
 ================
-idWeapon::ShouldConstructScriptObjectAtSpawn
+jkSimpleForcePower::ShouldConstructScriptObjectAtSpawn
 
 Called during idEntity::Spawn to see if it should construct the script object or not.
 Overridden by subclasses that need to spawn the script object themselves.
 ================
 */
-bool idWeapon::ShouldConstructScriptObjectAtSpawn( void ) const {
+bool jkSimpleForcePower::ShouldConstructScriptObjectAtSpawn( void ) const {
 	return false;
 }
 
 /*
 ================
-idWeapon::CacheWeapon
+jkSimpleForcePower::CacheWeapon
 ================
 */
-void idWeapon::CacheWeapon( const char *weaponName ) {
+void jkSimpleForcePower::CacheWeapon( const char *weaponName ) {
 	const idDeclEntityDef *weaponDef;
 	const char *brassDefName;
 	const char *clipModelName;
@@ -260,10 +263,10 @@ void idWeapon::CacheWeapon( const char *weaponName ) {
 
 /*
 ================
-idWeapon::Save
+jkSimpleForcePower::Save
 ================
 */
-void idWeapon::Save( idSaveGame *savefile ) const {
+void jkSimpleForcePower::Save( idSaveGame *savefile ) const {
 
 	savefile->WriteInt( status );
 	savefile->WriteObject( thread );
@@ -299,8 +302,6 @@ void idWeapon::Save( idSaveGame *savefile ) const {
 	savefile->WriteVec3( pushVelocity );
 
 	savefile->WriteString( weaponDef->GetName() );
-	savefile->WriteFloat( meleeDistance );
-	savefile->WriteString( meleeDefName );
 	savefile->WriteInt( brassDelay );
 	savefile->WriteString( icon );
 
@@ -347,11 +348,6 @@ void idWeapon::Save( idSaveGame *savefile ) const {
 	savefile->WriteJoint( flashJointWorld );
 	savefile->WriteJoint( barrelJointWorld );
 	savefile->WriteJoint( ejectJointWorld );
-	savefile->WriteJoint( meleeJointWorld );
-
-	savefile->WriteBool( autoMeleeEnabled ); 
-	savefile->WriteBool( useMeleeBox );
-	savefile->WriteBounds( meleebox ); 
 
 	savefile->WriteBool( hasBloodSplat );
 
@@ -391,10 +387,10 @@ void idWeapon::Save( idSaveGame *savefile ) const {
 
 /*
 ================
-idWeapon::Restore
+jkSimpleForcePower::Restore
 ================
 */
-void idWeapon::Restore( idRestoreGame *savefile ) {
+void jkSimpleForcePower::Restore( idRestoreGame *savefile ) {
 
 	savefile->ReadInt( (int &)status );
 	savefile->ReadObject( reinterpret_cast<idClass *&>( thread ) );
@@ -442,7 +438,6 @@ void idWeapon::Restore( idRestoreGame *savefile ) {
 	idStr objectname;
 	savefile->ReadString( objectname );
 	weaponDef = gameLocal.FindEntityDef( objectname );
-	meleeDef = gameLocal.FindEntityDef( weaponDef->dict.GetString( "def_melee" ), false );
 
 	const idDeclEntityDef *projectileDef = gameLocal.FindEntityDef( weaponDef->dict.GetString( "def_projectile" ), false );
 	if ( projectileDef ) {
@@ -458,8 +453,6 @@ void idWeapon::Restore( idRestoreGame *savefile ) {
 		brassDict.Clear();
 	}
 
-	savefile->ReadFloat( meleeDistance );
-	savefile->ReadString( meleeDefName );
 	savefile->ReadInt( brassDelay );
 	savefile->ReadString( icon );
 
@@ -516,11 +509,6 @@ void idWeapon::Restore( idRestoreGame *savefile ) {
 	savefile->ReadJoint( flashJointWorld );
 	savefile->ReadJoint( barrelJointWorld );
 	savefile->ReadJoint( ejectJointWorld );
-	savefile->ReadJoint( meleeJointWorld );
-
-	savefile->ReadBool( autoMeleeEnabled ); 
-	savefile->ReadBool( useMeleeBox );
-	savefile->ReadBounds( meleebox ); 
 
 	savefile->ReadBool( hasBloodSplat );
 
@@ -568,10 +556,10 @@ void idWeapon::Restore( idRestoreGame *savefile ) {
 
 /*
 ================
-idWeapon::Clear
+jkSimpleForcePower::Clear
 ================
 */
-void idWeapon::Clear( void ) {
+void jkSimpleForcePower::Clear( void ) {
 	CancelEvents( &EV_Weapon_Clear );
 
 	DeconstructScriptObject();
@@ -672,16 +660,13 @@ void idWeapon::Clear( void ) {
 	muzzleOrigin.Zero();
 	pushVelocity.Zero();
 
-	status			= WP_HOLSTERED;
+	status			= FP_HOLSTERED;
 	state			= "";
 	idealState		= "";
 	animBlendFrames	= 0;
 	animDoneTime	= 0;
 
 	projectileDict.Clear();
-	meleeDef		= NULL;
-	meleeDefName	= "";
-	meleeDistance	= 0.0f;
 	brassDict.Clear();
 
 	flashTime		= 250;
@@ -712,7 +697,6 @@ void idWeapon::Clear( void ) {
 	barrelJointWorld	= INVALID_JOINT;
 	flashJointWorld		= INVALID_JOINT;
 	ejectJointWorld		= INVALID_JOINT;
-	meleeJointWorld		= INVALID_JOINT;
 
 	hasBloodSplat		= false;
 	nozzleFx			= false;
@@ -738,23 +722,16 @@ void idWeapon::Clear( void ) {
 
 	isLinked			= false;
 	projectileEnt		= NULL;
-	
-	//New Melee Stuff
-	lastMeleeEnt		= NULL; 
-	//isSecFiring			= false; 
-	autoMeleeEnabled	= false;  
-	useMeleeBox			= false;  
-	meleebox.Zero();
 
 	isFiring			= false;
 }
 
 /*
 ================
-idWeapon::InitWorldModel
+jkSimpleForcePower::InitWorldModel
 ================
 */
-void idWeapon::InitWorldModel( const idDeclEntityDef *def ) {
+void jkSimpleForcePower::InitWorldModel( const idDeclEntityDef *def ) {
 	idEntity *ent;
 
 	ent = worldModel.GetEntity();
@@ -793,24 +770,17 @@ void idWeapon::InitWorldModel( const idDeclEntityDef *def ) {
 	flashJointWorld = ent->GetAnimator()->GetJointHandle( "flash" );
 	barrelJointWorld = ent->GetAnimator()->GetJointHandle( "muzzle" );
 	ejectJointWorld = ent->GetAnimator()->GetJointHandle( "eject" );
-	meleeJointWorld = ent->GetAnimator()->GetJointHandle( "emitter" );
-
-	meleebox.Zero();
-	float expansion = def->dict.GetFloat( "melee_tracerWidth", "0" ); 
-	if(expansion > 0){
-		useMeleeBox = true;
-		meleebox.ExpandSelf( expansion );
-	}
 }
 
 /*
 ================
-idWeapon::GetWeaponDef
+jkSimpleForcePower::GetWeaponDef
 ================
 */
-void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
+void jkSimpleForcePower::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	const char *shader;
 	const char *objectType;
+	const char *forceType;
 	const char *vmodel;
 	const char *guiName;
 	const char *projectileName;
@@ -896,7 +866,6 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	ejectJointView = animator.GetJointHandle( "eject" );
 	guiLightJointView = animator.GetJointHandle( "guiLight" );
 	ventLightJointView = animator.GetJointHandle( "ventLight" );
-	meleeJointWorld = animator.GetJointHandle( "emitter" );
 
 	// get the projectile
 	projectileDict.Clear();
@@ -995,15 +964,6 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	weaponDef->dict.GetString( "mtr_nozzleGlowShader", "", &shader );
 	nozzleGlowShader = declManager->FindMaterial( shader, false );
 
-	// get the melee damage def
-	meleeDistance = weaponDef->dict.GetFloat( "melee_distance" );
-	meleeDefName = weaponDef->dict.GetString( "def_melee" );
-	if ( meleeDefName.Length() ) {
-		meleeDef = gameLocal.FindEntityDef( meleeDefName, false );
-		if ( !meleeDef ) {
-			gameLocal.Error( "Unknown melee '%s'", meleeDefName.c_str() );
-		}
-	}
 
 	// get the brass def
 	brassDict.Clear();
@@ -1050,7 +1010,11 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	weaponOffsetScale = weaponDef->dict.GetFloat( "weaponOffsetScale", "0.005" );
 
 	if ( !weaponDef->dict.GetString( "weapon_scriptobject", NULL, &objectType ) ) {
-		gameLocal.Error( "No 'weapon_scriptobject' set on '%s'.", objectname );
+		gameLocal.Error( "2No 'weapon_scriptobject' set on '%s'.", objectname );
+	}
+
+	if (!weaponDef->dict.GetString("forceclass", NULL, &forceType)) {
+		gameLocal.Error("No 'weaponclass' set on '%s'.", objectname);
 	}
 
 	// setup script object
@@ -1092,24 +1056,24 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 
 /*
 ================
-idWeapon::Icon
+jkSimpleForcePower::Icon
 ================
 */
-const char *idWeapon::Icon( void ) const {
+const char *jkSimpleForcePower::Icon( void ) const {
 	return icon;
 }
 
 /*
 ================
-idWeapon::UpdateGUI
+jkSimpleForcePower::UpdateGUI
 ================
 */
-void idWeapon::UpdateGUI( void ) {
+void jkSimpleForcePower::UpdateGUI( void ) {
 	if ( !renderEntity.gui[ 0 ] ) {
 		return;
 	}
 
-	if ( status == WP_HOLSTERED ) {
+	if ( status == FP_HOLSTERED ) {
 		return;
 	}
 
@@ -1156,10 +1120,10 @@ void idWeapon::UpdateGUI( void ) {
 
 /*
 ================
-idWeapon::UpdateFlashPosition
+jkSimpleForcePower::UpdateFlashPosition
 ================
 */
-void idWeapon::UpdateFlashPosition( void ) {
+void jkSimpleForcePower::UpdateFlashPosition( void ) {
 	// the flash has an explicit joint for locating it
 	GetGlobalJointTransform( true, flashJointView, muzzleFlash.origin, muzzleFlash.axis );
 
@@ -1177,10 +1141,10 @@ void idWeapon::UpdateFlashPosition( void ) {
 
 /*
 ================
-idWeapon::MuzzleFlashLight
+jkSimpleForcePower::MuzzleFlashLight
 ================
 */
-void idWeapon::MuzzleFlashLight( void ) {
+void jkSimpleForcePower::MuzzleFlashLight( void ) {
 
 	if ( !lightOn && ( !g_muzzleFlash.GetBool() || !muzzleFlash.lightRadius[0] ) ) {
 		return;
@@ -1213,10 +1177,10 @@ void idWeapon::MuzzleFlashLight( void ) {
 
 /*
 ================
-idWeapon::UpdateSkin
+jkSimpleForcePower::UpdateSkin
 ================
 */
-bool idWeapon::UpdateSkin( void ) {
+bool jkSimpleForcePower::UpdateSkin( void ) {
 	const function_t *func;
 
 	if ( !isLinked ) {
@@ -1238,10 +1202,10 @@ bool idWeapon::UpdateSkin( void ) {
 
 /*
 ================
-idWeapon::SetModel
+jkSimpleForcePower::SetModel
 ================
 */
-void idWeapon::SetModel( const char *modelname ) {
+void jkSimpleForcePower::SetModel( const char *modelname ) {
 	assert( modelname );
 
 	if ( modelDefHandle >= 0 ) {
@@ -1265,12 +1229,12 @@ void idWeapon::SetModel( const char *modelname ) {
 
 /*
 ================
-idWeapon::GetGlobalJointTransform
+jkSimpleForcePower::GetGlobalJointTransform
 
 This returns the offset and axis of a weapon bone in world space, suitable for attaching models or lights
 ================
 */
-bool idWeapon::GetGlobalJointTransform( bool viewModel, const jointHandle_t jointHandle, idVec3 &offset, idMat3 &axis ) {
+bool jkSimpleForcePower::GetGlobalJointTransform( bool viewModel, const jointHandle_t jointHandle, idVec3 &offset, idMat3 &axis ) {
 	if ( viewModel ) {
 		// view model
 		if ( animator.GetJointTransform( jointHandle, gameLocal.time, offset, axis ) ) {
@@ -1293,10 +1257,10 @@ bool idWeapon::GetGlobalJointTransform( bool viewModel, const jointHandle_t join
 
 /*
 ================
-idWeapon::SetPushVelocity
+jkSimpleForcePower::SetPushVelocity
 ================
 */
-void idWeapon::SetPushVelocity( const idVec3 &pushVelocity ) {
+void jkSimpleForcePower::SetPushVelocity( const idVec3 &pushVelocity ) {
 	this->pushVelocity = pushVelocity;
 }
 
@@ -1309,19 +1273,19 @@ void idWeapon::SetPushVelocity( const idVec3 &pushVelocity ) {
 
 /*
 ================
-idWeapon::Think
+jkSimpleForcePower::Think
 ================
 */
-void idWeapon::Think( void ) {
+void jkSimpleForcePower::Think( void ) {
 	// do nothing because the present is called from the player through PresentWeapon
 }
 
 /*
 ================
-idWeapon::Raise
+jkSimpleForcePower::Raise
 ================
 */
-void idWeapon::Raise( void ) {
+void jkSimpleForcePower::Raise( void ) {
 	if ( isLinked ) {
 		WEAPON_RAISEWEAPON = true;
 	}
@@ -1329,10 +1293,10 @@ void idWeapon::Raise( void ) {
 
 /*
 ================
-idWeapon::PutAway
+jkSimpleForcePower::PutAway
 ================
 */
-void idWeapon::PutAway( void ) {
+void jkSimpleForcePower::PutAway( void ) {
 	hasBloodSplat = false;
 	if ( isLinked ) {
 		WEAPON_LOWERWEAPON = true;
@@ -1341,11 +1305,11 @@ void idWeapon::PutAway( void ) {
 
 /*
 ================
-idWeapon::Reload
+jkSimpleForcePower::Reload
 NOTE: this is only for impulse-triggered reload, auto reload is scripted
 ================
 */
-void idWeapon::Reload( void ) {
+void jkSimpleForcePower::Reload( void ) {
 	if ( isLinked ) {
 		WEAPON_RELOAD = true;
 	}
@@ -1353,10 +1317,10 @@ void idWeapon::Reload( void ) {
 
 /*
 ================
-idWeapon::LowerWeapon
+jkSimpleForcePower::LowerWeapon
 ================
 */
-void idWeapon::LowerWeapon( void ) {
+void jkSimpleForcePower::LowerWeapon( void ) {
 	if ( !hide ) {
 		hideStart	= 0.0f;
 		hideEnd		= hideDistance;
@@ -1371,10 +1335,10 @@ void idWeapon::LowerWeapon( void ) {
 
 /*
 ================
-idWeapon::RaiseWeapon
+jkSimpleForcePower::RaiseWeapon
 ================
 */
-void idWeapon::RaiseWeapon( void ) {
+void jkSimpleForcePower::RaiseWeapon( void ) {
 	Show();
 
 	if ( hide ) {
@@ -1391,10 +1355,10 @@ void idWeapon::RaiseWeapon( void ) {
 
 /*
 ================
-idWeapon::HideWeapon
+jkSimpleForcePower::HideWeapon
 ================
 */
-void idWeapon::HideWeapon( void ) {
+void jkSimpleForcePower::HideWeapon( void ) {
 	Hide();
 	if ( worldModel.GetEntity() ) {
 		worldModel.GetEntity()->Hide();
@@ -1404,10 +1368,10 @@ void idWeapon::HideWeapon( void ) {
 
 /*
 ================
-idWeapon::ShowWeapon
+jkSimpleForcePower::ShowWeapon
 ================
 */
-void idWeapon::ShowWeapon( void ) {
+void jkSimpleForcePower::ShowWeapon( void ) {
 	Show();
 	if ( worldModel.GetEntity() ) {
 		worldModel.GetEntity()->Show();
@@ -1419,10 +1383,10 @@ void idWeapon::ShowWeapon( void ) {
 
 /*
 ================
-idWeapon::HideWorldModel
+jkSimpleForcePower::HideWorldModel
 ================
 */
-void idWeapon::HideWorldModel( void ) {
+void jkSimpleForcePower::HideWorldModel( void ) {
 	if ( worldModel.GetEntity() ) {
 		worldModel.GetEntity()->Hide();
 	}
@@ -1430,10 +1394,10 @@ void idWeapon::HideWorldModel( void ) {
 
 /*
 ================
-idWeapon::ShowWorldModel
+jkSimpleForcePower::ShowWorldModel
 ================
 */
-void idWeapon::ShowWorldModel( void ) {
+void jkSimpleForcePower::ShowWorldModel( void ) {
 	if ( worldModel.GetEntity() ) {
 		worldModel.GetEntity()->Show();
 	}
@@ -1441,10 +1405,10 @@ void idWeapon::ShowWorldModel( void ) {
 
 /*
 ================
-idWeapon::OwnerDied
+jkSimpleForcePower::OwnerDied
 ================
 */
-void idWeapon::OwnerDied( void ) {
+void jkSimpleForcePower::OwnerDied( void ) {
 	if ( isLinked ) {
 		SetState( "OwnerDied", 0 );
 		thread->Execute();
@@ -1462,11 +1426,11 @@ void idWeapon::OwnerDied( void ) {
 
 /*
 ================
-idWeapon::BeginAttack
+jkSimpleForcePower::BeginAttack
 ================
 */
-void idWeapon::BeginAttack( void ) {
-	if ( status != WP_OUTOFAMMO ) {
+void jkSimpleForcePower::BeginAttack( void ) {
+	if ( status != FP_OUTOFAMMO ) {
 		lastAttack = gameLocal.time;
 	}
 
@@ -1479,16 +1443,18 @@ void idWeapon::BeginAttack( void ) {
 			StopSound( SND_CHANNEL_BODY, false );
 		}
 	}
+
 	WEAPON_ATTACK = true;
+
 }
 
 /*
 ================
-idWeapon::BeginAttackAlt
+jkSimpleForcePower::BeginAttackAlt
 ================
 */
-void idWeapon::BeginAttackAlt( void ) {
-	if ( status != WP_OUTOFAMMO ) {
+void jkSimpleForcePower::BeginAttackAlt( void ) {
+	if ( status != FP_OUTOFAMMO ) {
 		lastAttack = gameLocal.time;
 	}
 
@@ -1506,10 +1472,10 @@ void idWeapon::BeginAttackAlt( void ) {
 
 /*
 ================
-idWeapon::EndAttack
+jkSimpleForcePower::EndAttack
 ================
 */
-void idWeapon::EndAttack( void ) {
+void jkSimpleForcePower::EndAttack( void ) {
 	if ( !WEAPON_ATTACK.IsLinked() ) {
 		return;
 	}
@@ -1523,10 +1489,10 @@ void idWeapon::EndAttack( void ) {
 
 /*
 ================
-idWeapon::EndAttackAlt
+jkSimpleForcePower::EndAttackAlt
 ================
 */
-void idWeapon::EndAttackAlt( void ) {
+void jkSimpleForcePower::EndAttackAlt( void ) {
 	if ( !WEAPON_ATTACK_ALT.IsLinked() ) {
 		return;
 	}
@@ -1540,46 +1506,46 @@ void idWeapon::EndAttackAlt( void ) {
 
 /*
 ================
-idWeapon::isReady
+jkSimpleForcePower::isReady
 ================
 */
-bool idWeapon::IsReady( void ) const {
-	return !hide && !IsHidden() && ( ( status == WP_RELOAD ) || ( status == WP_READY ) || ( status == WP_OUTOFAMMO ) );
+bool jkSimpleForcePower::IsReady( void ) const {
+	return !hide && !IsHidden() && ( ( status == FP_RELOAD ) || ( status == FP_READY ) || ( status == FP_OUTOFAMMO ) );
 }
 
 /*
 ================
-idWeapon::IsReloading
+jkSimpleForcePower::IsReloading
 ================
 */
-bool idWeapon::IsReloading( void ) const {
-	return ( status == WP_RELOAD );
+bool jkSimpleForcePower::IsReloading( void ) const {
+	return ( status == FP_RELOAD );
 }
 
 /*
 ================
-idWeapon::IsHolstered
+jkSimpleForcePower::IsHolstered
 ================
 */
-bool idWeapon::IsHolstered( void ) const {
-	return ( status == WP_HOLSTERED );
+bool jkSimpleForcePower::IsHolstered( void ) const {
+	return ( status == FP_HOLSTERED );
 }
 
 /*
 ================
-idWeapon::ShowCrosshair
+jkSimpleForcePower::ShowCrosshair
 ================
 */
-bool idWeapon::ShowCrosshair( void ) const {
-	return !( state == idStr( WP_RISING ) || state == idStr( WP_LOWERING ) || state == idStr( WP_HOLSTERED ) );
+bool jkSimpleForcePower::ShowCrosshair( void ) const {
+	return !( state == idStr( FP_RISING ) || state == idStr( FP_LOWERING ) || state == idStr( FP_HOLSTERED ) );
 }
 
 /*
 =====================
-idWeapon::CanDrop
+jkSimpleForcePower::CanDrop
 =====================
 */
-bool idWeapon::CanDrop( void ) const {
+bool jkSimpleForcePower::CanDrop( void ) const {
 	if ( !weaponDef || !worldModel.GetEntity() ) {
 		return false;
 	}
@@ -1592,10 +1558,10 @@ bool idWeapon::CanDrop( void ) const {
 
 /*
 ================
-idWeapon::WeaponStolen
+jkSimpleForcePower::WeaponStolen
 ================
 */
-void idWeapon::WeaponStolen( void ) {
+void jkSimpleForcePower::WeaponStolen( void ) {
 	assert( !gameLocal.isClient );
 	if ( projectileEnt ) {
 		if ( isLinked ) {
@@ -1606,17 +1572,17 @@ void idWeapon::WeaponStolen( void ) {
 	}
 
 	// set to holstered so we can switch weapons right away
-	status = WP_HOLSTERED;
+	status = FP_HOLSTERED;
 
 	HideWeapon();
 }
 
 /*
 =====================
-idWeapon::DropItem
+jkSimpleForcePower::DropItem
 =====================
 */
-idEntity * idWeapon::DropItem( const idVec3 &velocity, int activateDelay, int removeDelay, bool died ) {
+idEntity * jkSimpleForcePower::DropItem( const idVec3 &velocity, int activateDelay, int removeDelay, bool died ) {
 	if ( !weaponDef || !worldModel.GetEntity() ) {
 		return NULL;
 	}
@@ -1641,10 +1607,10 @@ idEntity * idWeapon::DropItem( const idVec3 &velocity, int activateDelay, int re
 
 /*
 =====================
-idWeapon::SetState
+jkSimpleForcePower::SetState
 =====================
 */
-void idWeapon::SetState( const char *statename, int blendFrames ) {
+void jkSimpleForcePower::SetState( const char *statename, int blendFrames ) {
 	const function_t *func;
 
 	if ( !isLinked ) {
@@ -1677,10 +1643,10 @@ void idWeapon::SetState( const char *statename, int blendFrames ) {
 
 /*
 ================
-idWeapon::UpdateNozzelFx
+jkSimpleForcePower::UpdateNozzelFx
 ================
 */
-void idWeapon::UpdateNozzleFx( void ) {
+void jkSimpleForcePower::UpdateNozzleFx( void ) {
 	if ( !nozzleFx ) {
 		return;
 	}
@@ -1733,10 +1699,10 @@ void idWeapon::UpdateNozzleFx( void ) {
 
 /*
 ================
-idWeapon::BloodSplat
+jkSimpleForcePower::BloodSplat
 ================
 */
-bool idWeapon::BloodSplat( float size ) {
+bool jkSimpleForcePower::BloodSplat( float size ) {
 	float s, c;
 	idMat3 localAxis, axistemp;
 	idVec3 localOrigin, normal;
@@ -1796,12 +1762,12 @@ bool idWeapon::BloodSplat( float size ) {
 
 /*
 ================
-idWeapon::MuzzleRise
+jkSimpleForcePower::MuzzleRise
 
 The machinegun and chaingun will incrementally back up as they are being fired
 ================
 */
-void idWeapon::MuzzleRise( idVec3 &origin, idMat3 &axis ) {
+void jkSimpleForcePower::MuzzleRise( idVec3 &origin, idMat3 &axis ) {
 	int			time;
 	float		amount;
 	idAngles	ang;
@@ -1830,13 +1796,13 @@ void idWeapon::MuzzleRise( idVec3 &origin, idMat3 &axis ) {
 
 /*
 ================
-idWeapon::ConstructScriptObject
+jkSimpleForcePower::ConstructScriptObject
 
 Called during idEntity::Spawn.  Calls the constructor on the script object.
 Can be overridden by subclasses when a thread doesn't need to be allocated.
 ================
 */
-idThread *idWeapon::ConstructScriptObject( void ) {
+idThread *jkSimpleForcePower::ConstructScriptObject( void ) {
 	const function_t *constructor;
 
 	thread->EndThread();
@@ -1857,14 +1823,14 @@ idThread *idWeapon::ConstructScriptObject( void ) {
 
 /*
 ================
-idWeapon::DeconstructScriptObject
+jkSimpleForcePower::DeconstructScriptObject
 
 Called during idEntity::~idEntity.  Calls the destructor on the script object.
 Can be overridden by subclasses when a thread doesn't need to be allocated.
 Not called during idGameLocal::MapShutdown.
 ================
 */
-void idWeapon::DeconstructScriptObject( void ) {
+void jkSimpleForcePower::DeconstructScriptObject( void ) {
 	const function_t *destructor;
 
 	if ( !thread ) {
@@ -1893,10 +1859,10 @@ void idWeapon::DeconstructScriptObject( void ) {
 
 /*
 ================
-idWeapon::UpdateScript
+jkSimpleForcePower::UpdateScript
 ================
 */
-void idWeapon::UpdateScript( void ) {
+void jkSimpleForcePower::UpdateScript( void ) {
 	int	count;
 
 	if ( !isLinked ) {
@@ -1926,10 +1892,10 @@ void idWeapon::UpdateScript( void ) {
 
 /*
 ================
-idWeapon::AlertMonsters
+jkSimpleForcePower::AlertMonsters
 ================
 */
-void idWeapon::AlertMonsters( void ) {
+void jkSimpleForcePower::AlertMonsters( void ) {
 	trace_t	tr;
 	idEntity *ent;
 	idVec3 end = muzzleFlash.origin + muzzleFlash.axis * muzzleFlash.target;
@@ -1972,10 +1938,10 @@ void idWeapon::AlertMonsters( void ) {
 
 /*
 ================
-idWeapon::PresentWeapon
+jkSimpleForcePower::PresentWeapon
 ================
 */
-void idWeapon::PresentWeapon( bool showViewModel ) {
+void jkSimpleForcePower::PresentWeapon( bool showViewModel ) {
 	playerViewOrigin = owner->firstPersonViewOrigin;
 	playerViewAxis = owner->firstPersonViewAxis;
 
@@ -2103,23 +2069,19 @@ void idWeapon::PresentWeapon( bool showViewModel ) {
 		}
 	}
 
-	if ( status != WP_READY && sndHum ) {
+	if ( status != FP_READY && sndHum ) {
 		StopSound( SND_CHANNEL_BODY, false );
 	}
 
 	UpdateSound();
-
-	if ( autoMeleeEnabled && !disabled ) { //not in cinematic
-        EvaluateMelee();
-	}
 }
 
 /*
 ================
-idWeapon::EnterCinematic
+jkSimpleForcePower::EnterCinematic
 ================
 */
-void idWeapon::EnterCinematic( void ) {
+void jkSimpleForcePower::EnterCinematic( void ) {
 	StopSound( SND_CHANNEL_ANY, false );
 
 	if ( isLinked ) {
@@ -2137,17 +2099,16 @@ void idWeapon::EnterCinematic( void ) {
 	}
 
 	disabled = true;
-	autoMeleeEnabled = false;
 
 	LowerWeapon();
 }
 
 /*
 ================
-idWeapon::ExitCinematic
+jkSimpleForcePower::ExitCinematic
 ================
 */
-void idWeapon::ExitCinematic( void ) {
+void jkSimpleForcePower::ExitCinematic( void ) {
 	disabled = false;
 
 	if ( isLinked ) {
@@ -2160,10 +2121,10 @@ void idWeapon::ExitCinematic( void ) {
 
 /*
 ================
-idWeapon::NetCatchup
+jkSimpleForcePower::NetCatchup
 ================
 */
-void idWeapon::NetCatchup( void ) {
+void jkSimpleForcePower::NetCatchup( void ) {
 	if ( isLinked ) {
 		SetState( "NetCatchup", 0 );
 		thread->Execute();
@@ -2172,19 +2133,19 @@ void idWeapon::NetCatchup( void ) {
 
 /*
 ================
-idWeapon::GetZoomFov
+jkSimpleForcePower::GetZoomFov
 ================
 */
-int	idWeapon::GetZoomFov( void ) {
+int	jkSimpleForcePower::GetZoomFov( void ) {
 	return zoomFov;
 }
 
 /*
 ================
-idWeapon::GetWeaponAngleOffsets
+jkSimpleForcePower::GetWeaponAngleOffsets
 ================
 */
-void idWeapon::GetWeaponAngleOffsets( int *average, float *scale, float *max ) {
+void jkSimpleForcePower::GetWeaponAngleOffsets( int *average, float *scale, float *max ) {
 	*average = weaponAngleOffsetAverages;
 	*scale = weaponAngleOffsetScale;
 	*max = weaponAngleOffsetMax;
@@ -2192,10 +2153,10 @@ void idWeapon::GetWeaponAngleOffsets( int *average, float *scale, float *max ) {
 
 /*
 ================
-idWeapon::GetWeaponTimeOffsets
+jkSimpleForcePower::GetWeaponTimeOffsets
 ================
 */
-void idWeapon::GetWeaponTimeOffsets( float *time, float *scale ) {
+void jkSimpleForcePower::GetWeaponTimeOffsets( float *time, float *scale ) {
 	*time = weaponOffsetTime;
 	*scale = weaponOffsetScale;
 }
@@ -2209,10 +2170,10 @@ void idWeapon::GetWeaponTimeOffsets( float *time, float *scale ) {
 
 /*
 ================
-idWeapon::GetAmmoNumForName
+jkSimpleForcePower::GetAmmoNumForName
 ================
 */
-ammo_t idWeapon::GetAmmoNumForName( const char *ammoname ) {
+ammo_t jkSimpleForcePower::GetAmmoNumForName( const char *ammoname ) {
 	int num;
 	const idDict *ammoDict;
 
@@ -2240,10 +2201,10 @@ ammo_t idWeapon::GetAmmoNumForName( const char *ammoname ) {
 
 /*
 ================
-idWeapon::GetAmmoNameForNum
+jkSimpleForcePower::GetAmmoNameForNum
 ================
 */
-const char *idWeapon::GetAmmoNameForNum( ammo_t ammonum ) {
+const char *jkSimpleForcePower::GetAmmoNameForNum( ammo_t ammonum ) {
 	int i;
 	int num;
 	const idDict *ammoDict;
@@ -2270,10 +2231,10 @@ const char *idWeapon::GetAmmoNameForNum( ammo_t ammonum ) {
 
 /*
 ================
-idWeapon::GetAmmoPickupNameForNum
+jkSimpleForcePower::GetAmmoPickupNameForNum
 ================
 */
-const char *idWeapon::GetAmmoPickupNameForNum( ammo_t ammonum ) {
+const char *jkSimpleForcePower::GetAmmoPickupNameForNum( ammo_t ammonum ) {
 	int i;
 	int num;
 	const idDict *ammoDict;
@@ -2301,10 +2262,10 @@ const char *idWeapon::GetAmmoPickupNameForNum( ammo_t ammonum ) {
 
 /*
 ================
-idWeapon::AmmoAvailable
+jkSimpleForcePower::AmmoAvailable
 ================
 */
-int idWeapon::AmmoAvailable( void ) const {
+int jkSimpleForcePower::AmmoAvailable( void ) const {
 	if ( owner ) {
 		return owner->inventory.HasAmmo( ammoType, ammoRequired );
 	} else {
@@ -2314,64 +2275,64 @@ int idWeapon::AmmoAvailable( void ) const {
 
 /*
 ================
-idWeapon::AmmoInClip
+jkSimpleForcePower::AmmoInClip
 ================
 */
-int idWeapon::AmmoInClip( void ) const {
+int jkSimpleForcePower::AmmoInClip( void ) const {
 	return ammoClip;
 }
 
 /*
 ================
-idWeapon::ResetAmmoClip
+jkSimpleForcePower::ResetAmmoClip
 ================
 */
-void idWeapon::ResetAmmoClip( void ) {
+void jkSimpleForcePower::ResetAmmoClip( void ) {
 	ammoClip = -1;
 }
 
 /*
 ================
-idWeapon::GetAmmoType
+jkSimpleForcePower::GetAmmoType
 ================
 */
-ammo_t idWeapon::GetAmmoType( void ) const {
+ammo_t jkSimpleForcePower::GetAmmoType( void ) const {
 	return ammoType;
 }
 
 /*
 ================
-idWeapon::ClipSize
+jkSimpleForcePower::ClipSize
 ================
 */
-int	idWeapon::ClipSize( void ) const {
+int	jkSimpleForcePower::ClipSize( void ) const {
 	return clipSize;
 }
 
 /*
 ================
-idWeapon::LowAmmo
+jkSimpleForcePower::LowAmmo
 ================
 */
-int	idWeapon::LowAmmo() const {
+int	jkSimpleForcePower::LowAmmo() const {
 	return lowAmmo;
 }
 
 /*
 ================
-idWeapon::AmmoRequired
+jkSimpleForcePower::AmmoRequired
 ================
 */
-int	idWeapon::AmmoRequired( void ) const {
+int	jkSimpleForcePower::AmmoRequired( void ) const {
 	return ammoRequired;
 }
 
 /*
 ================
-idWeapon::WriteToSnapshot
+jkSimpleForcePower::WriteToSnapshot
 ================
 */
-void idWeapon::WriteToSnapshot( idBitMsgDelta &msg ) const {
+void jkSimpleForcePower::WriteToSnapshot( idBitMsgDelta &msg ) const {
 	msg.WriteBits( ammoClip, ASYNC_PLAYER_INV_CLIP_BITS );
 	msg.WriteBits( worldModel.GetSpawnId(), 32 );
 	msg.WriteBits( lightOn, 1 );
@@ -2380,10 +2341,10 @@ void idWeapon::WriteToSnapshot( idBitMsgDelta &msg ) const {
 
 /*
 ================
-idWeapon::ReadFromSnapshot
+jkSimpleForcePower::ReadFromSnapshot
 ================
 */
-void idWeapon::ReadFromSnapshot( const idBitMsgDelta &msg ) {
+void jkSimpleForcePower::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 	ammoClip = msg.ReadBits( ASYNC_PLAYER_INV_CLIP_BITS );
 	worldModel.SetSpawnId( msg.ReadBits( 32 ) );
 	bool snapLight = msg.ReadBits( 1 ) != 0;
@@ -2412,10 +2373,10 @@ void idWeapon::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 
 /*
 ================
-idWeapon::ClientReceiveEvent
+jkSimpleForcePower::ClientReceiveEvent
 ================
 */
-bool idWeapon::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
+bool jkSimpleForcePower::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
 
 	switch( event ) {
 		case EVENT_RELOAD: {
@@ -2457,28 +2418,28 @@ bool idWeapon::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
 
 /*
 ===============
-idWeapon::Event_Clear
+jkSimpleForcePower::Event_Clear
 ===============
 */
-void idWeapon::Event_Clear( void ) {
+void jkSimpleForcePower::Event_Clear( void ) {
 	Clear();
 }
 
 /*
 ===============
-idWeapon::Event_GetOwner
+jkSimpleForcePower::Event_GetOwner
 ===============
 */
-void idWeapon::Event_GetOwner( void ) {
+void jkSimpleForcePower::Event_GetOwner( void ) {
 	idThread::ReturnEntity( owner );
 }
 
 /*
 ===============
-idWeapon::Event_WeaponState
+jkSimpleForcePower::Event_WeaponState
 ===============
 */
-void idWeapon::Event_WeaponState( const char *statename, int blendFrames ) {
+void jkSimpleForcePower::Event_WeaponState( const char *statename, int blendFrames ) {
 	const function_t *func;
 
 	func = scriptObject.GetFunction( statename );
@@ -2506,11 +2467,11 @@ void idWeapon::Event_WeaponState( const char *statename, int blendFrames ) {
 
 /*
 ===============
-idWeapon::Event_WeaponReady
+jkSimpleForcePower::Event_WeaponReady
 ===============
 */
-void idWeapon::Event_WeaponReady( void ) {
-	status = WP_READY;
+void jkSimpleForcePower::Event_WeaponReady( void ) {
+	status = FP_READY;
 	if ( isLinked ) {
 		WEAPON_RAISEWEAPON = false;
 	}
@@ -2522,11 +2483,11 @@ void idWeapon::Event_WeaponReady( void ) {
 
 /*
 ===============
-idWeapon::Event_WeaponOutOfAmmo
+jkSimpleForcePower::Event_WeaponOutOfAmmo
 ===============
 */
-void idWeapon::Event_WeaponOutOfAmmo( void ) {
-	status = WP_OUTOFAMMO;
+void jkSimpleForcePower::Event_WeaponOutOfAmmo( void ) {
+	status = FP_OUTOFAMMO;
 	if ( isLinked ) {
 		WEAPON_RAISEWEAPON = false;
 	}
@@ -2534,20 +2495,20 @@ void idWeapon::Event_WeaponOutOfAmmo( void ) {
 
 /*
 ===============
-idWeapon::Event_WeaponReloading
+jkSimpleForcePower::Event_WeaponReloading
 ===============
 */
-void idWeapon::Event_WeaponReloading( void ) {
-	status = WP_RELOAD;
+void jkSimpleForcePower::Event_WeaponReloading( void ) {
+	status = FP_RELOAD;
 }
 
 /*
 ===============
-idWeapon::Event_WeaponHolstered
+jkSimpleForcePower::Event_WeaponHolstered
 ===============
 */
-void idWeapon::Event_WeaponHolstered( void ) {
-	status = WP_HOLSTERED;
+void jkSimpleForcePower::Event_WeaponHolstered( void ) {
+	status = FP_HOLSTERED;
 	if ( isLinked ) {
 		WEAPON_LOWERWEAPON = false;
 	}
@@ -2555,36 +2516,36 @@ void idWeapon::Event_WeaponHolstered( void ) {
 
 /*
 ===============
-idWeapon::Event_WeaponRising
+jkSimpleForcePower::Event_WeaponRising
 ===============
 */
-void idWeapon::Event_WeaponRising( void ) {
-	status = WP_RISING;
+void jkSimpleForcePower::Event_WeaponRising( void ) {
+	status = FP_RISING;
 	if ( isLinked ) {
 		WEAPON_LOWERWEAPON = false;
 	}
-	owner->WeaponRisingCallback();
+	//owner->WeaponRisingCallback();
 }
 
 /*
 ===============
-idWeapon::Event_WeaponLowering
+jkSimpleForcePower::Event_WeaponLowering
 ===============
 */
-void idWeapon::Event_WeaponLowering( void ) {
-	status = WP_LOWERING;
+void jkSimpleForcePower::Event_WeaponLowering( void ) {
+	status = FP_LOWERING;
 	if ( isLinked ) {
 		WEAPON_RAISEWEAPON = false;
 	}
-	owner->WeaponLoweringCallback();
+	//owner->WeaponLoweringCallback();
 }
 
 /*
 ===============
-idWeapon::Event_UseAmmo
+jkSimpleForcePower::Event_UseAmmo
 ===============
 */
-void idWeapon::Event_UseAmmo( int amount ) {
+void jkSimpleForcePower::Event_UseAmmo( int amount ) {
 	if ( gameLocal.isClient ) {
 		return;
 	}
@@ -2600,10 +2561,10 @@ void idWeapon::Event_UseAmmo( int amount ) {
 
 /*
 ===============
-idWeapon::Event_AddToClip
+jkSimpleForcePower::Event_AddToClip
 ===============
 */
-void idWeapon::Event_AddToClip( int amount ) {
+void jkSimpleForcePower::Event_AddToClip( int amount ) {
 	int ammoAvail;
 
 	if ( gameLocal.isClient ) {
@@ -2623,49 +2584,49 @@ void idWeapon::Event_AddToClip( int amount ) {
 
 /*
 ===============
-idWeapon::Event_AmmoInClip
+jkSimpleForcePower::Event_AmmoInClip
 ===============
 */
-void idWeapon::Event_AmmoInClip( void ) {
+void jkSimpleForcePower::Event_AmmoInClip( void ) {
 	int ammo = AmmoInClip();
 	idThread::ReturnFloat( ammo );
 }
 
 /*
 ===============
-idWeapon::Event_AmmoAvailable
+jkSimpleForcePower::Event_AmmoAvailable
 ===============
 */
-void idWeapon::Event_AmmoAvailable( void ) {
+void jkSimpleForcePower::Event_AmmoAvailable( void ) {
 	int ammoAvail = owner->inventory.HasAmmo( ammoType, ammoRequired );
 	idThread::ReturnFloat( ammoAvail );
 }
 
 /*
 ===============
-idWeapon::Event_TotalAmmoCount
+jkSimpleForcePower::Event_TotalAmmoCount
 ===============
 */
-void idWeapon::Event_TotalAmmoCount( void ) {
+void jkSimpleForcePower::Event_TotalAmmoCount( void ) {
 	int ammoAvail = owner->inventory.HasAmmo( ammoType, 1 );
 	idThread::ReturnFloat( ammoAvail );
 }
 
 /*
 ===============
-idWeapon::Event_ClipSize
+jkSimpleForcePower::Event_ClipSize
 ===============
 */
-void idWeapon::Event_ClipSize( void ) {
+void jkSimpleForcePower::Event_ClipSize( void ) {
 	idThread::ReturnFloat( clipSize );
 }
 
 /*
 ===============
-idWeapon::Event_AutoReload
+jkSimpleForcePower::Event_AutoReload
 ===============
 */
-void idWeapon::Event_AutoReload( void ) {
+void jkSimpleForcePower::Event_AutoReload( void ) {
 	assert( owner );
 	if ( gameLocal.isClient ) {
 		idThread::ReturnFloat( 0.0f );
@@ -2676,10 +2637,10 @@ void idWeapon::Event_AutoReload( void ) {
 
 /*
 ===============
-idWeapon::Event_NetReload
+jkSimpleForcePower::Event_NetReload
 ===============
 */
-void idWeapon::Event_NetReload( void ) {
+void jkSimpleForcePower::Event_NetReload( void ) {
 	assert( owner );
 	if ( gameLocal.isServer ) {
 		ServerSendEvent( EVENT_RELOAD, NULL, false, -1 );
@@ -2688,10 +2649,10 @@ void idWeapon::Event_NetReload( void ) {
 
 /*
 ===============
-idWeapon::Event_NetEndReload
+jkSimpleForcePower::Event_NetEndReload
 ===============
 */
-void idWeapon::Event_NetEndReload( void ) {
+void jkSimpleForcePower::Event_NetEndReload( void ) {
 	assert( owner );
 	if ( gameLocal.isServer ) {
 		ServerSendEvent( EVENT_ENDRELOAD, NULL, false, -1 );
@@ -2700,10 +2661,10 @@ void idWeapon::Event_NetEndReload( void ) {
 
 /*
 ===============
-idWeapon::Event_PlayAnim
+jkSimpleForcePower::Event_PlayAnim
 ===============
 */
-void idWeapon::Event_PlayAnim( int channel, const char *animname ) {
+void jkSimpleForcePower::Event_PlayAnim( int channel, const char *animname ) {
 	int anim;
 
 	anim = animator.GetAnim( animname );
@@ -2730,10 +2691,10 @@ void idWeapon::Event_PlayAnim( int channel, const char *animname ) {
 
 /*
 ===============
-idWeapon::Event_PlayCycle
+jkSimpleForcePower::Event_PlayCycle
 ===============
 */
-void idWeapon::Event_PlayCycle( int channel, const char *animname ) {
+void jkSimpleForcePower::Event_PlayCycle( int channel, const char *animname ) {
 	int anim;
 
 	anim = animator.GetAnim( animname );
@@ -2758,10 +2719,10 @@ void idWeapon::Event_PlayCycle( int channel, const char *animname ) {
 
 /*
 ===============
-idWeapon::Event_AnimDone
+jkSimpleForcePower::Event_AnimDone
 ===============
 */
-void idWeapon::Event_AnimDone( int channel, int blendFrames ) {
+void jkSimpleForcePower::Event_AnimDone( int channel, int blendFrames ) {
 	if ( animDoneTime - FRAME2MS( blendFrames ) <= gameLocal.time ) {
 		idThread::ReturnInt( true );
 	} else {
@@ -2771,38 +2732,38 @@ void idWeapon::Event_AnimDone( int channel, int blendFrames ) {
 
 /*
 ===============
-idWeapon::Event_SetBlendFrames
+jkSimpleForcePower::Event_SetBlendFrames
 ===============
 */
-void idWeapon::Event_SetBlendFrames( int channel, int blendFrames ) {
+void jkSimpleForcePower::Event_SetBlendFrames( int channel, int blendFrames ) {
 	animBlendFrames = blendFrames;
 }
 
 /*
 ===============
-idWeapon::Event_GetBlendFrames
+jkSimpleForcePower::Event_GetBlendFrames
 ===============
 */
-void idWeapon::Event_GetBlendFrames( int channel ) {
+void jkSimpleForcePower::Event_GetBlendFrames( int channel ) {
 	idThread::ReturnInt( animBlendFrames );
 }
 
 /*
 ================
-idWeapon::Event_Next
+jkSimpleForcePower::Event_Next
 ================
 */
-void idWeapon::Event_Next( void ) {
+void jkSimpleForcePower::Event_Next( void ) {
 	// change to another weapon if possible
 	owner->NextBestWeapon();
 }
 
 /*
 ================
-idWeapon::Event_SetSkin
+jkSimpleForcePower::Event_SetSkin
 ================
 */
-void idWeapon::Event_SetSkin( const char *skinname ) {
+void jkSimpleForcePower::Event_SetSkin( const char *skinname ) {
 	const idDeclSkin *skinDecl;
 
 	if ( !skinname || !skinname[ 0 ] ) {
@@ -2830,10 +2791,10 @@ void idWeapon::Event_SetSkin( const char *skinname ) {
 
 /*
 ================
-idWeapon::Event_Flashlight
+jkSimpleForcePower::Event_Flashlight
 ================
 */
-void idWeapon::Event_Flashlight( int enable ) {
+void jkSimpleForcePower::Event_Flashlight( int enable ) {
 	if ( enable ) {
 		lightOn = true;
 		MuzzleFlashLight();
@@ -2845,10 +2806,10 @@ void idWeapon::Event_Flashlight( int enable ) {
 
 /*
 ================
-idWeapon::Event_GetLightParm
+jkSimpleForcePower::Event_GetLightParm
 ================
 */
-void idWeapon::Event_GetLightParm( int parmnum ) {
+void jkSimpleForcePower::Event_GetLightParm( int parmnum ) {
 	if ( ( parmnum < 0 ) || ( parmnum >= MAX_ENTITY_SHADER_PARMS ) ) {
 		gameLocal.Error( "shader parm index (%d) out of range", parmnum );
 	}
@@ -2858,10 +2819,10 @@ void idWeapon::Event_GetLightParm( int parmnum ) {
 
 /*
 ================
-idWeapon::Event_SetLightParm
+jkSimpleForcePower::Event_SetLightParm
 ================
 */
-void idWeapon::Event_SetLightParm( int parmnum, float value ) {
+void jkSimpleForcePower::Event_SetLightParm( int parmnum, float value ) {
 	if ( ( parmnum < 0 ) || ( parmnum >= MAX_ENTITY_SHADER_PARMS ) ) {
 		gameLocal.Error( "shader parm index (%d) out of range", parmnum );
 	}
@@ -2873,10 +2834,10 @@ void idWeapon::Event_SetLightParm( int parmnum, float value ) {
 
 /*
 ================
-idWeapon::Event_SetLightParms
+jkSimpleForcePower::Event_SetLightParms
 ================
 */
-void idWeapon::Event_SetLightParms( float parm0, float parm1, float parm2, float parm3 ) {
+void jkSimpleForcePower::Event_SetLightParms( float parm0, float parm1, float parm2, float parm3 ) {
 	muzzleFlash.shaderParms[ SHADERPARM_RED ]			= parm0;
 	muzzleFlash.shaderParms[ SHADERPARM_GREEN ]			= parm1;
 	muzzleFlash.shaderParms[ SHADERPARM_BLUE ]			= parm2;
@@ -2892,10 +2853,10 @@ void idWeapon::Event_SetLightParms( float parm0, float parm1, float parm2, float
 
 /*
 ================
-idWeapon::Event_CreateProjectile
+jkSimpleForcePower::Event_CreateProjectile
 ================
 */
-void idWeapon::Event_CreateProjectile( void ) {
+void jkSimpleForcePower::Event_CreateProjectile( void ) {
 	if ( !gameLocal.isClient ) {
 		projectileEnt = NULL;
 		gameLocal.SpawnEntityDef( projectileDict, &projectileEnt, false );
@@ -2912,10 +2873,10 @@ void idWeapon::Event_CreateProjectile( void ) {
 
 /*
 ================
-idWeapon::Event_LaunchProjectiles
+jkSimpleForcePower::Event_LaunchProjectiles
 ================
 */
-void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower ) {
+void jkSimpleForcePower::Event_LaunchProjectiles( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower ) {
 	idProjectile	*proj;
 	idEntity		*ent;
 	int				i;
@@ -3120,7 +3081,7 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 			//Dynamix
 			if ( tracer ) { 
 				/*		if ( traceDist <= muzzleToTargetDist ) // Ideally, this should never happen
-					gameLocal.Printf ( " Unpredicted traceDistance in idWeapon::Event_LaunchProjectiles " );
+					gameLocal.Printf ( " Unpredicted traceDistance in jkSimpleForcePower::Event_LaunchProjectiles " );
 				*/
 				bool beamTracer = (projectileDict.GetString( "beam_skin", NULL ) != NULL);
 				float tracer_speed = 0;
@@ -3165,10 +3126,10 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 /* Dynamix This isn't a good way to do this but it'll work so whatever
 /*
 ================
-idWeapon::Event_LaunchProjectiles_Alt
+jkSimpleForcePower::Event_LaunchProjectiles_Alt
 ================
 */
-void idWeapon::Event_LaunchProjectiles_Alt( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower ) {
+void jkSimpleForcePower::Event_LaunchProjectiles_Alt( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower ) {
 	idProjectile	*proj;
 	idEntity		*ent;
 	int				i;
@@ -3345,385 +3306,22 @@ void idWeapon::Event_LaunchProjectiles_Alt( int num_projectiles, float spread, f
 	weaponSmokeStartTime = gameLocal.realClientTime;
 }
 
-/* OLD code for reference
-/*
-=====================
-idWeapon::Event_Melee
-=====================
-
-void idWeapon::Event_Melee( void ) {
-	idEntity	*ent;
-	trace_t		tr;
-
-	if ( !meleeDef ) {
-		gameLocal.Error( "No meleeDef on '%s'", weaponDef->dict.GetString( "classname" ) );
-	}
-
-	if ( !gameLocal.isClient ) {
-		idVec3 start = playerViewOrigin;
-		idVec3 end = start + playerViewAxis[0] * ( meleeDistance * owner->PowerUpModifier( MELEE_DISTANCE ) );
-		gameLocal.clip.TracePoint( tr, start, end, MASK_SHOT_RENDERMODEL, owner );
-		if ( tr.fraction < 1.0f ) {
-			ent = gameLocal.GetTraceEntity( tr );
-		} else {
-			ent = NULL;
-		}
-
-		if ( g_debugWeapon.GetBool() ) {
-			gameRenderWorld->DebugLine( colorYellow, start, end, 100 );
-			if ( ent ) {
-				gameRenderWorld->DebugBounds( colorRed, ent->GetPhysics()->GetBounds(), ent->GetPhysics()->GetOrigin(), 100 );
-			}
-		}
-
-		bool hit = false;
-		const char *hitSound = meleeDef->dict.GetString( "snd_miss" );
-
-		if ( ent ) {
-
-			float push = meleeDef->dict.GetFloat( "push" );
-			idVec3 impulse = -push * owner->PowerUpModifier( SPEED ) * tr.c.normal;
-
-			if ( gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) && ( ent->IsType( idActor::Type ) || ent->IsType( idAFAttachment::Type) ) ) {
-				idThread::ReturnInt( 0 );
-				return;
-			}
-
-			ent->ApplyImpulse( this, tr.c.id, tr.c.point, impulse );
-
-			// weapon stealing - do this before damaging so weapons are not dropped twice
-			if ( gameLocal.isMultiplayer
-				&& weaponDef && weaponDef->dict.GetBool( "stealing" )
-				&& ent->IsType( idPlayer::Type )
-				&& !owner->PowerUpActive( BERSERK )
-				&& ( gameLocal.gameType != GAME_TDM || gameLocal.serverInfo.GetBool( "si_teamDamage" ) || ( owner->team != static_cast< idPlayer * >( ent )->team ) )
-				) {
-				owner->StealWeapon( static_cast< idPlayer * >( ent ) );
-			}
-
-			if ( ent->fl.takedamage ) {
-				idVec3 kickDir, globalKickDir;
-				meleeDef->dict.GetVector( "kickDir", "0 0 0", kickDir );
-				globalKickDir = muzzleAxis * kickDir;
-				ent->Damage( owner, owner, globalKickDir, meleeDefName, owner->PowerUpModifier( MELEE_DAMAGE ), tr.c.id );
-				hit = true;
-			}
-
-			if ( weaponDef->dict.GetBool( "impact_damage_effect" ) ) {
-
-				if ( ent->spawnArgs.GetBool( "bleed" ) ) {
-
-					hitSound = meleeDef->dict.GetString( owner->PowerUpActive( BERSERK ) ? "snd_hit_berserk" : "snd_hit" );
-
-					ent->AddDamageEffect( tr, impulse, meleeDef->dict.GetString( "classname" ) );
-
-				} else {
-
-					int type = tr.c.material->GetSurfaceType();
-					if ( type == SURFTYPE_NONE ) {
-						type = GetDefaultSurfaceType();
-					}
-
-					const char *materialType = gameLocal.sufaceTypeNames[ type ];
-
-					// start impact sound based on material type
-					hitSound = meleeDef->dict.GetString( va( "snd_%s", materialType ) );
-					if ( *hitSound == '\0' ) {
-						hitSound = meleeDef->dict.GetString( "snd_metal" );
-					}
-
-					if ( gameLocal.time > nextStrikeFx ) {
-						const char *decal;
-						// project decal
-						decal = weaponDef->dict.GetString( "mtr_strike" );
-						if ( decal && *decal ) {
-							gameLocal.ProjectDecal( tr.c.point, -tr.c.normal, 8.0f, true, 6.0, decal );
-						}
-						nextStrikeFx = gameLocal.time + 200;
-					} else {
-						hitSound = "";
-					}
-
-					strikeSmokeStartTime = gameLocal.time;
-					strikePos = tr.c.point;
-					strikeAxis = -tr.endAxis;
-				}
-			}
-		}
-
-		if ( *hitSound != '\0' ) {
-			const idSoundShader *snd = declManager->FindSound( hitSound );
-			StartSoundShader( snd, SND_CHANNEL_BODY2, 0, true, NULL );
-		}
-
-		idThread::ReturnInt( hit );
-		owner->WeaponFireFeedback( &weaponDef->dict );
-		return;
-	}
-
-	idThread::ReturnInt( 0 );
-	owner->WeaponFireFeedback( &weaponDef->dict );
-}
-*/
 
 /*
 =====================
-idWeapon::StartAutoMelee
+jkSimpleForcePower::Event_GetWorldModel
 =====================
 */
-void idWeapon::StartAutoMelee( float dmgMult, int trailNum ) {  
-	if ( g_debugWeapon.GetBool() ) {
-		gameLocal.Printf("idWeapon::StartAutoMelee - dmgMult: %f,trailNum: %d - time:%d\n", dmgMult, trailNum, gameLocal.time);
-	}
-	comboMultiplier = dmgMult;
-	lastMeleeEnt = NULL; //reset it so that can be hit again
-    autoMeleeEnabled = true;
-	nextStrikeFx = gameLocal.time + 100; //delay snd+prt for LOW priority entities after the beginning of the attack
-	nextMeleeSnd = gameLocal.time + 100; //don't play snd on world too early - this could not be used
-	
-	//-- trail --
-	
-	//make sure no trail is started if there is ever started if there is no melee joint
-	if ( meleeJointWorld == INVALID_JOINT ) {
-		return;
-	}
-
-}
-
-/*
-=====================
-idWeapon::StopAutoMelee
-=====================
-*/
-void idWeapon::StopAutoMelee( void ) {
-    comboMultiplier = 1.0f;
-	lastMeleeEnt = NULL; //don't remember it in the future  	
-	autoMeleeEnabled = false;
-	
-	//beam
-}
-
-/*
-=====================
-idWeapon::Event_StartAutoMelee
-=====================
-*/
-void idWeapon::Event_StartAutoMelee( float dmgMult, int trailNum ) {  
-	StartAutoMelee( dmgMult, trailNum );
-}
-
-/*
-=====================
-idWeapon::Event_StopAutoMelee
-=====================
-*/
-void idWeapon::Event_StopAutoMelee( void ) {
-	StopAutoMelee();
-}
-
-/*
-=====================
-idWeapon::Event_Melee
-=====================
-*/
-void idWeapon::Event_Melee( void ) {
-	if( !autoMeleeEnabled && EvaluateMelee() ){ //don't do this if it's already enabled...
-           idThread::ReturnInt( 1 );
-        }else{
-           idThread::ReturnInt( 0 );
-        }
-}
-
-/*
-=====================
-idWeapon::EvaluateMelee
-=====================
-*/
-bool idWeapon::EvaluateMelee( void ) {  
-	idEntity *ent;
-	trace_t tr;
-
-	if ( !meleeDef ) {
-		gameLocal.Error( "No meleeDef on '%s'", weaponDef->dict.GetString( "classname" ) );
-	}
-
-	if ( !gameLocal.isClient ) {
-		idVec3 start;
-		idVec3 end;
-
-		//get origin end axis of the joint "melee" if available
-		if ( meleeJointWorld == INVALID_JOINT ) {
-			//gameLocal.Printf( "idWeapon::EvaluateMelee - Invalid joint 'melee' \n" );
-			start = playerViewOrigin;
-			end = start + playerViewAxis[0] * ( meleeDistance * owner->PowerUpModifier( MELEE_DISTANCE ) );
-		} else { 
-			GetGlobalJointTransform( false , meleeJointWorld, meleeJointOrigin, meleeJointAxis );  //to do: upd this somewhere else?
-			start = meleeJointOrigin;
-			end = start + meleeJointAxis[0] * ( meleeDistance * owner->PowerUpModifier( MELEE_DISTANCE ) );
-			//gameLocal.Printf( "idWeapon::EvaluateMelee - start %f %f %f \n",start[0],start[1],start[2] );
-		}
-
-		if ( useMeleeBox ){
-			gameLocal.clip.TraceBounds( tr, start, end, meleebox, MASK_SHOT_RENDERMODEL, owner ); //ignore player
-		} else {
-			gameLocal.clip.TracePoint( tr, start, end, MASK_SHOT_RENDERMODEL, owner );  //ignore player
-		}
-
-		if ( tr.fraction < 1.0f ) {	
-			ent = gameLocal.entities[ tr.c.entityNum ]; //fix the headshot bug with melee attacks
-			if(( ent ) && !(ent->IsType( idAFAttachment::Type))){ //only if it's not an idAFAttachment
-				ent = gameLocal.GetTraceEntity( tr );
-			}
-		} else {
-			ent = NULL;
-		}
-
-		if ( g_debugWeapon.GetBool() ) {
-			gameRenderWorld->DebugLine( colorYellow, start, end, 100 );
-			if ( useMeleeBox ) {
-				gameRenderWorld->DebugBounds( colorBlue,meleebox, start, 100 );
-				gameRenderWorld->DebugBounds( colorBlue,meleebox, end, 100 );
-			}
-			if ( ent ) {
-				gameRenderWorld->DebugBounds( colorRed, ent->GetPhysics()->GetBounds(), ent->GetPhysics()->GetOrigin(), 100 );
-			}
-		}
-
-		bool hit = false;
-		const char *hitSound = meleeDef->dict.GetString( "snd_miss" );
-
-		if ( ent ) {  //something hit
-			
-			//gameLocal.Printf( "idWeapon::EvaluateMelee - ent = %s \n",ent->GetName());
-
-			if(autoMeleeEnabled &&( ent == lastMeleeEnt)){ //ignore the last entity hit
-				//gameLocal.Printf( "idWeapon::EvaluateMelee - entity ignored\n" );
-				return true; //we hit the same thing again... do nothing now.
-			}
-			//gameLocal.Printf( "idWeapon::EvaluateMelee - ent = %s \n",ent->GetName());
-
-			if ( gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) && ( ent->IsType( idActor::Type ) || ent->IsType( idAFAttachment::Type) ) ) {  //no melee if noweapons = 1?
-				autoMeleeEnabled = false; //make sure
-				return false;
-			}
-
-			// weapon stealing - do this before damaging so weapons are not dropped twice - disabled if autoMeleeEnabled
-			if ( !autoMeleeEnabled
-				&& gameLocal.isMultiplayer
-				&& weaponDef && weaponDef->dict.GetBool( "stealing" )
-				&& ent->IsType( idPlayer::Type )
-				&& !owner->PowerUpActive( BERSERK )
-				&& ( gameLocal.gameType != GAME_TDM || gameLocal.serverInfo.GetBool( "si_teamDamage" ) || ( owner->team != static_cast< idPlayer * >( ent )->team ) )
-				) {
-					owner->StealWeapon( static_cast< idPlayer * >( ent ) );
-			}
-
-			if ( ent->fl.takedamage ) {
-				idVec3 kickDir, globalKickDir;
-				meleeDef->dict.GetVector( "kickDir", "0 0 0", kickDir );
-				globalKickDir = muzzleAxis * kickDir;
-				
-				//Ivan fix - transform clipmodel to joint handle to correctly get the damage zone in idActor::Damage
-				//was: ent->Damage( owner, owner, globalKickDir, meleeDefName, owner->PowerUpModifier( MELEE_DAMAGE ), tr.c.id );
-				ent->Damage( owner, owner, globalKickDir, meleeDefName, (comboMultiplier * owner->PowerUpModifier( MELEE_DAMAGE )) , CLIPMODEL_ID_TO_JOINT_HANDLE( tr.c.id ) );
-				
-				lastMeleeEnt = ent; //remember this to avoid hitting it consecutively
-				hit = true;
-			}
-
-			//push
-			float push = meleeDef->dict.GetFloat( "push" );
-			idVec3 impulse = -push * owner->PowerUpModifier( SPEED ) * tr.c.normal;
-
-			//extra push for AFs
-			if( (ent->health <= 0) && (ent->IsType(idAFEntity_Base::Type)) ){
-				idAFEntity_Base *p = static_cast< idAFEntity_Base * >( ent );
-
-				if ( p->IsActiveAF() ){
-					//gameLocal.Printf( "p->IsActiveAF()\n" );
-					impulse *= meleeDef->dict.GetInt( "pushAFMult","1" );
-					//quinak and dirty fix for flying ragdolls
-					/*
-					if(impulse.z > 70000 ){
-						impulse.z = 70000,
-					}else if( impulse.z < -70000 ){
-						impulse.z = -70000,
-					}
-					*/
-					//gameLocal.Printf( "idWeapon::EvaluateMelee - impulse: %s, lenght: %f\n", impulse.ToString(), impulse.Length() );
-				}
-			}
-			ent->ApplyImpulse( this, tr.c.id, tr.c.point, impulse );
-
-			if ( weaponDef->dict.GetBool( "impact_damage_effect" ) ) {
-				if ( ent->spawnArgs.GetBool( "bleed" ) ) {
-					hitSound = meleeDef->dict.GetString( owner->PowerUpActive( BERSERK ) ? "snd_hit_berserk" : "snd_hit" );
-					ent->AddDamageEffect( tr, impulse, meleeDef->dict.GetString( "classname" ) );
-				}
-				else { 
-					int type = tr.c.material->GetSurfaceType();
-					if ( type == SURFTYPE_NONE ) {
-						type = GetDefaultSurfaceType();
-					}
-					const char *materialType = gameLocal.sufaceTypeNames[ type ];
-
-					// start impact sound based on material type
-					hitSound = meleeDef->dict.GetString( va( "snd_%s", materialType ) );
-					if ( *hitSound == '\0' ) {
-						hitSound = meleeDef->dict.GetString( "snd_metal" );
-					}
-
-					if ( gameLocal.time > nextStrikeFx ) {
-						const char *decal;
-						// project decal
-						decal = weaponDef->dict.GetString( "mtr_strike" );
-						if ( decal && *decal ) {
-							gameLocal.ProjectDecal( tr.c.point, -tr.c.normal, 8.0f, true, 6.0, decal );
-						}
-						nextStrikeFx = gameLocal.time + 200;
-					} else {
-						hitSound = "";
-					}
-
-					strikeSmokeStartTime = gameLocal.time;
-					strikePos = tr.c.point;
-					strikeAxis = -tr.endAxis;
-				}
-			}
-		}
-
-		//always play sound if autoMelee is disabled, otherwise only if (we damaged something ) or (hit something not damaged, as world, and we are beyond the min time)
-		if( (hit) || (ent && gameLocal.time > nextMeleeSnd ) || (!autoMeleeEnabled )) {
-                if ( *hitSound != '\0' ) {
-        			const idSoundShader *snd = declManager->FindSound( hitSound );
-        			StartSoundShader( snd, SND_CHANNEL_BODY2, 0, true, NULL );
-        			nextMeleeSnd = gameLocal.time + 1000;
-        		}
-        }
-
-		if(!autoMeleeEnabled){ owner->WeaponFireFeedback( &weaponDef->dict ); } //autoMeleeEnabled --> no need for feedback
-		return hit;
-	}
-
-	if(!autoMeleeEnabled){ owner->WeaponFireFeedback( &weaponDef->dict ); } //autoMeleeEnabled --> no need for feedback
-	return false;
-}
-
-/*
-=====================
-idWeapon::Event_GetWorldModel
-=====================
-*/
-void idWeapon::Event_GetWorldModel( void ) {
+void jkSimpleForcePower::Event_GetWorldModel( void ) {
 	idThread::ReturnEntity( worldModel.GetEntity() );
 }
 
 /*
 =====================
-idWeapon::Event_AllowDrop
+jkSimpleForcePower::Event_AllowDrop
 =====================
 */
-void idWeapon::Event_AllowDrop( int allow ) {
+void jkSimpleForcePower::Event_AllowDrop( int allow ) {
 	if ( allow ) {
 		allowDrop = true;
 	} else {
@@ -3733,12 +3331,12 @@ void idWeapon::Event_AllowDrop( int allow ) {
 
 /*
 ================
-idWeapon::Event_EjectBrass
+jkSimpleForcePower::Event_EjectBrass
 
 Toss a shell model out from the breach if the bone is present
 ================
 */
-void idWeapon::Event_EjectBrass( void ) {
+void jkSimpleForcePower::Event_EjectBrass( void ) {
 	if ( !g_showBrass.GetBool() || !owner->CanShowWeaponViewmodel() ) {
 		return;
 	}
@@ -3776,10 +3374,10 @@ void idWeapon::Event_EjectBrass( void ) {
 
 /*
 ===============
-idWeapon::Event_IsInvisible
+jkSimpleForcePower::Event_IsInvisible
 ===============
 */
-void idWeapon::Event_IsInvisible( void ) {
+void jkSimpleForcePower::Event_IsInvisible( void ) {
 	if ( !owner ) {
 		idThread::ReturnFloat( 0 );
 		return;
@@ -3789,9 +3387,52 @@ void idWeapon::Event_IsInvisible( void ) {
 
 /*
 ===============
-idWeapon::ClientPredictionThink
+jkSimpleForcePower::ClientPredictionThink
 ===============
 */
-void idWeapon::ClientPredictionThink( void ) {
+void jkSimpleForcePower::ClientPredictionThink( void ) {
 	UpdateAnimation();
+}
+
+/*
+===============
+jkSimpleForcePower::Event_DoForcePower
+===============
+*/
+void jkSimpleForcePower::Event_DoForcePower( void ) {
+}
+
+/*
+===============
+jkSimpleForcePower::Event_DoForcePower
+===============
+*/
+void jkSimpleForcePower::Event_UseForcePoints( float amount, int alignment, int type ) {
+	owner->UseForcePoints(amount, alignment, type);
+}
+
+/*
+================
+jkForcePower::BeginAttack
+================
+*/
+void jkForcePower::BeginAttack( void ) {
+	if ( status != FP_OUTOFAMMO ) {
+		lastAttack = gameLocal.time;
+	}
+
+	if ( !isLinked ) {
+		return;
+	}
+
+	if ( !WEAPON_ATTACK ) {
+		if ( sndHum ) {
+			StopSound( SND_CHANNEL_BODY, false );
+		}
+	}
+	WEAPON_ATTACK = true;
+
+	int forceLevel = 1;
+	gameLocal.DPrintf("Force.cpp BeginAttack %d\n", forceLevel);
+	owner->inventory.GivePowerUp( owner, BERSERK, 30000);
 }

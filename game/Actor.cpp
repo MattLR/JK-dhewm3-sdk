@@ -2302,6 +2302,82 @@ bool idActor::Pain( idEntity *inflictor, idEntity *attacker, int damage, const i
 }
 
 /*
+/*
+============
+ForcePowerResponse
+
+this		entity that is being damaged
+inflictor	entity that is causing the damage
+attacker	entity that caused the inflictor to damage targ
+	example: this=monster, inflictor=rocket, attacker=player
+
+dir			direction of the attack for knockback in global space
+point		point at which the damage is being inflicted, used for headshots
+damage		amount of damage being inflicted
+
+inflictor, attacker, dir, and point can be NULL for environmental effects
+
+============
+
+void idActor::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
+					  const char *forceDefName, const int forceLevel, const int location ) {
+				gameLocal.DPrintf ("ForcePowerResponse idActor\n");
+
+
+		if ( idStr::Icmp(forceDefName, "push") == 0 ) {
+
+			idPhysics *phys = this->GetPhysics();
+			int pushRadius = 400;
+			int pushStrength = 1000;
+			idVec3 inflictorOrigin = inflictor->GetPhysics()->GetOrigin();
+			idVec3 thisOrigin = phys->GetOrigin();
+			idVec3 offset( 0.0f, 0.0f, -10.0f );
+			idVec3 oldGrav = phys->GetGravity();
+			idVec3 grav( 0.0f, 0.0f, 0.0f );
+			float dist = ( thisOrigin - inflictorOrigin ).Length();
+			
+			float falloff = 1.0f - ( dist / pushRadius );
+			float impulse = pushStrength * falloff;
+			idVec3 vel = phys->GetLinearVelocity();
+			vel += dir * impulse;
+			//phys->Se
+    		phys->SetGravity(grav);
+			//phys->SetOrigin(phys->GetOrigin() - offset);
+			phys->SetLinearVelocity( vel );
+			phys->SetGravity(oldGrav);
+			//phys->ApplyImpulse(  0, phys->GetOrigin(), dir * impulse);
+			// Should be ApplyImpulse really
+			//idVec3 center = ai->GetPhysics()->GetCenterOfMass();
+			//ai->GetPhysics()->ApplyImpulse(inflictor, 0, this-GetObjectCe, dir * impulse);
+			//obEnt->ApplyImpulse( this, 0, obEnt->GetPhysics()->GetOrigin(), forceVec );
+			//phys->SetLinearVelocity( phys->GetLinearVelocity() + finalDir * (finalImpulse * 0.6f) );
+			//phys->SetLinearVelocity( dir * impulse * 0.5f );
+			//ai->Pain( this, this, dir, 0, vec3_origin, 0 ); // trigger stumble/pain reaction
+			//continue;
+			int printOnce = 0;
+			int startTime = gameLocal.GetTime();
+			gameLocal.Printf ("%d\n", startTime);
+			int endTime = gameLocal.GetTime() + 500;
+			int currentTime = gameLocal.GetTime();
+			while (endTime >= currentTime ) {
+				if ( printOnce == 1) {
+					gameLocal.Printf ("asdasdasd\n");
+				}
+				currentTime++;
+				printOnce++;
+				}
+				
+				gameLocal.Printf ("Endtime %d\n", gameLocal.GetTime());
+	} else if ( idStr::Icmp(forceDefName, "pull") == 0 ) {
+	} else if ( idStr::Icmp(forceDefName, "mindtrick") == 0 ) {
+		team = 0;
+	} else if ( idStr::Icmp(forceDefName, "drain") == 0 ) {
+		return;
+	}
+}
+*/
+
+/*
 =====================
 idActor::SpawnGibs
 =====================

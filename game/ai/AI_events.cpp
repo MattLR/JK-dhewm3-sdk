@@ -162,6 +162,12 @@ const idEventDef AI_CanReachPosition( "canReachPosition", "v", 'd' );
 const idEventDef AI_CanReachEntity( "canReachEntity", "E", 'd' );
 const idEventDef AI_CanReachEnemy( "canReachEnemy", NULL, 'd' );
 const idEventDef AI_GetReachableEntityPosition( "getReachableEntityPosition", "e", 'v' );
+//Dynamix
+const idEventDef AI_EndMindTrick( "endMindTrick");
+
+//AI_SetTeam 
+//AI_ResetTeam 
+//AI_SetRank
 
 CLASS_DECLARATION( idActor, idAI )
 	EVENT( EV_Activate,							idAI::Event_Activate )
@@ -292,6 +298,8 @@ CLASS_DECLARATION( idActor, idAI )
 	EVENT( AI_CanReachEntity,					idAI::Event_CanReachEntity )
 	EVENT( AI_CanReachEnemy,					idAI::Event_CanReachEnemy )
 	EVENT( AI_GetReachableEntityPosition,		idAI::Event_GetReachableEntityPosition )
+	//Dynamix
+	EVENT( AI_EndMindTrick,						idAI::Event_EndMindTrick )
 END_CLASS
 
 /*
@@ -2705,4 +2713,16 @@ void idAI::Event_GetReachableEntityPosition( idEntity *ent ) {
 	}
 
 	idThread::ReturnVector( pos );
+}
+
+/*
+================
+idAI::Event_EndMindTrick
+================
+*/
+void idAI::Event_EndMindTrick( void ) {
+	gameLocal.DPrintf ("EndMindTrick\n");
+	spawnArgs.GetInt(	"team",					"1",		team );
+	spawnArgs.GetInt(	"rank",					"0",		rank );
+	return;
 }

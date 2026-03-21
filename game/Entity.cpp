@@ -3050,6 +3050,28 @@ void idEntity::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
 }
 
 /*
+============
+ForcePowerResponse
+
+this		entity that is being damaged
+inflictor	entity that is causing the damage
+attacker	entity that caused the inflictor to damage targ
+	example: this=monster, inflictor=rocket, attacker=player
+
+dir			direction of the attack for knockback in global space
+point		point at which the damage is being inflicted, used for headshots
+damage		amount of damage being inflicted
+
+inflictor, attacker, dir, and point can be NULL for environmental effects
+
+============
+*/
+void idEntity::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
+					  const char *forceDefName, const int forceLevel, const int location ) {
+						gameLocal.DPrintf ("ForcePowerResponse idEntity\n");
+}
+
+/*
 ================
 idEntity::AddDamageEffect
 ================

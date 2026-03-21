@@ -313,7 +313,7 @@ void Cmd_Give_f( const idCmdArgs &args ) {
 		}
 	}
 
-	if ( ( idStr::Cmpn( name, "weapon_", 7 ) == 0 ) || ( idStr::Cmpn( name, "item_", 5 ) == 0 ) || ( idStr::Cmpn( name, "ammo_", 5 ) == 0 ) ) {
+	if ( ( idStr::Cmpn( name, "weapon_", 7 ) == 0 ) || ( idStr::Cmpn( name, "item_", 5 ) == 0 ) || ( idStr::Cmpn( name, "ammo_", 5 ) == 0 ) || ( idStr::Cmpn( name, "fp_", 3 ) == 0 ) ) {
 		player->GiveItem( name );
 		return;
 	}
@@ -328,6 +328,16 @@ void Cmd_Give_f( const idCmdArgs &args ) {
 	if ( give_all || idStr::Icmp( name, "weapons" ) == 0 ) {
 		player->inventory.weapons = BIT( MAX_WEAPONS ) - 1;
 		player->CacheWeapons();
+
+		if ( !give_all ) {
+			return;
+		}
+	}
+
+	if ( give_all || idStr::Icmp( name, "forcepowers" ) == 0 ) {
+		player->inventory.weapons = BIT( MAX_FORCE_POWERS ) - 1;
+		player->CacheWeapons();
+		//player->CacheForcePowers();
 
 		if ( !give_all ) {
 			return;

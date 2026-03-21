@@ -171,6 +171,9 @@ public:
 	void					ClearPain( void );
 	virtual bool			Pain( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 
+	//Dynamix
+	//virtual	void			ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, const char *forceDefName, const int forceLevel, const int location );
+
 							// model/combat model/ragdoll
 	void					SetCombatModel( void );
 	idClipModel *			GetCombatModel( void ) const;

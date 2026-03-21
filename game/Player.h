@@ -34,6 +34,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "physics/Physics_Player.h"
 #include "Item.h"
 #include "Actor.h"
+#include "Force.h"
 #include "Weapon.h"
 #include "Projectile.h"
 #include "PlayerIcon.h"
@@ -64,8 +65,8 @@ const int	LAND_RETURN_TIME = 300;
 const int	FOCUS_TIME = 300;
 const int	FOCUS_GUI_TIME = 500;
 
-const int MAX_WEAPONS = 16;
-const int MAX_FORCE_POWERS = 16;
+const int MAX_WEAPONS = 32;
+const int MAX_FORCE_POWERS = 32;
 
 const int DEAD_HEARTRATE = 0;			// fall to as you die
 const int LOWHEALTH_HEARTRATE_ADJ = 20; //
@@ -98,6 +99,12 @@ struct idLevelTriggerInfo {
 	idStr triggerName;
 };
 
+struct statusEffect {
+	int type;
+	float power;
+	int endTime;
+};
+
 // powerups - the "type" in item .def must match
 enum {
 	BERSERK = 0,
@@ -123,6 +130,15 @@ enum {
 	INFLUENCE_LEVEL3,			// slow player movement
 };
 
+// force power modifiers
+enum {
+	FORCESPEED = 0,			// none
+	PROTECT,			// 
+	ABSORB,			// 
+	RAGE,			// 
+	SENSE,			// 
+};
+
 class idInventory {
 public:
 	int						maxHealth;
@@ -134,6 +150,7 @@ public:
 	int						ammo[ AMMO_NUMTYPES ];
 	int						clip[ MAX_WEAPONS ];
 	int						powerupEndTime[ MAX_POWERUPS ];
+	int						weaponMods[ MAX_WEAPONS ];
 
 	// mp
 	int						ammoPredictTime;
@@ -265,6 +282,16 @@ public:
 	idInventory				inventory;
 
 	idEntityPtr<idWeapon>	weapon;
+	idEntityPtr<idAnimatedEntity>	weaponWorldModel;
+	idEntityPtr<jkSimpleForcePower>	forcePower;
+	idEntityPtr<jkFP>	forcePower2;
+	const idDeclEntityDef*			forceDef;
+	int						forceLevels[16];
+
+	//Force stuff Dynamix
+	idList<statusEffect>	statusEffects;
+
+
 	idUserInterface *		hud;				// MP: is NULL if not local player
 	idUserInterface *		zoomGui;
 	idUserInterface *		objectiveSystem;
@@ -283,6 +310,7 @@ public:
 	bool					doingDeathSkin;
 	int						lastArmorPulse;		// lastDmgTime if we had armor at time of hit
 	float					stamina;
+	float					forcePool;			//Dynamix, available force points
 	float					healthPool;			// amount of health to give over time
 	int						nextHealthPulse;
 	bool					healthPulse;
@@ -354,6 +382,9 @@ public:
 	virtual void			Restart( void );
 	void					LinkScriptVariables( void );
 	void					SetupWeaponEntity( void );
+	void					SetForcePower( int weaponindex);
+	void					SetupForcePowerEntity( void );
+	const idDeclEntityDef*	GetForceDef ( int forceIndex );
 	void					SelectInitialSpawnPoint( idVec3 &origin, idAngles &angles );
 	void					SpawnFromSpawnSpot( void );
 	void					SpawnToPoint( const idVec3	&spawn_origin, const idAngles &spawn_angles );
@@ -433,6 +464,7 @@ public:
 	void					ClearPowerUps( void );
 	bool					PowerUpActive( int powerup ) const;
 	float					PowerUpModifier( int type );
+	float					StatusEffectModifier( int type );
 
 	int						SlotForWeapon( const char *weaponName );
 	void					Reload( void );
@@ -462,6 +494,7 @@ public:
 	void					SetCurrentHeartRate( void );
 	int						GetBaseHeartRate( void );
 	void					UpdateAir( void );
+	void					UpdateForce( void ); //Dynamix
 
 	virtual bool			HandleSingleGuiCommand( idEntity *entityGui, idLexer *src );
 	bool					GuiActive( void ) { return focusGUIent != NULL; }
@@ -526,6 +559,9 @@ public:
 
 	bool					OnLadder( void ) const;
 
+	idAnimatedEntity*		GetWeaponWorldModel ( void ) const;
+	int						GetCurrentWeapon	( void ) const;
+
 	virtual	void			UpdatePlayerIcons( void );
 	virtual	void			DrawPlayerIcons( void );
 	virtual	void			HidePlayerIcons( void );
@@ -533,6 +569,10 @@ public:
 
 	bool					SelfSmooth( void );
 	void					SetSelfSmooth( bool b );
+
+	//Dynamix
+	bool					UseForcePoints(float amount);
+	bool					UseForcePoints(float amount, int alignment, int type);
 
 private:
 	jointHandle_t			hipJoint;
@@ -558,6 +598,8 @@ private:
 	idVec3					viewBob;
 	int						landChange;
 	int						landTime;
+
+	const idDeclEntityDef*	cachedWeaponDefs[ MAX_WEAPONS ];
 
 	int						currentWeapon;
 	int						idealWeapon;
@@ -653,15 +695,21 @@ private:
 
 	bool					selfSmooth;
 
+	//Dynamix
+	bool					regenForce;
+
 	void					LookAtKiller( idEntity *inflictor, idEntity *attacker );
 
 	void					StopFiring( void );
 	void					FireWeapon( void );
 	void					FireWeaponAlt( void );
 	void					Weapon_Combat( void );
+	void					FireForce( void );
+	void					Force_Combat( void );
 	void					Weapon_NPC( void );
 	void					Weapon_GUI( void );
 	void					UpdateWeapon( void );
+	void					UpdateForcePower( void );
 	void					UpdateSpectating( void );
 	void					SpectateFreeFly( bool force );	// ignore the timeout to force when followed spec is no longer valid
 	void					SpectateCycle( void );
@@ -679,6 +727,7 @@ private:
 	void					SetAASLocation( void );
 	void					Move( void );
 	void					UpdatePowerUps( void );
+	void					UpdateStatusEffects( void ); //Dynamix
 	void					UpdateDeathSkin( bool state_hitch );
 	void					ClearPowerup( int i );
 	void					SetSpectateOrigin( void );
@@ -714,6 +763,15 @@ private:
 	void					Event_GetIdealWeapon( void );
 	void					Event_StartAutoMelee( float dmgMult, int trailNum );
 	void					Event_StopAutoMelee( void );
+	//void					Event_EnableForcePower( void );
+	//void					Event_DisableForcePower( void );
+	void					Event_EnableForceRegen( void );
+	void					Event_DisableForceRegen( void );
+	//Dynamix hud carousel stuff
+	void					Event_HideForceIcons( void );
+	void					Event_ShowForceIcons( void );
+	void					Event_HideWeaponIcons( void );
+	void					Event_ShowWeaponIcons( void );
 };
 
 ID_INLINE bool idPlayer::IsReady( void ) {

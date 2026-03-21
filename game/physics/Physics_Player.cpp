@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "sys/platform.h"
 #include "gamesys/SysCvar.h"
 #include "Entity.h"
+#include "player.h"
 
 #include "physics/Physics_Player.h"
 
@@ -629,14 +630,19 @@ void idPhysics_Player::AirMove( void ) {
 	// not on ground, so little effect on velocity
 	idPhysics_Player::Accelerate( wishdir, wishspeed, PM_AIRACCELERATE );
 	//check if jump held, if greater than timer and if forcejumptoken >0;
-	bool canForceJump = true;
+	
 	if ( (current.movementFlags & PMF_JUMP_HELD) && canForceJump && !current.movementTime) {
+		idPlayer *player = dynamic_cast<idPlayer*>( self );
 		//FIXME Force jump test stuff
 		idVec3 addVelocity;
 		addVelocity = 0.40f * maxJumpHeight * -gravityVector;
 		addVelocity *= idMath::Sqrt( addVelocity.Normalize() );
+		if ( forceJumpTicks > 0) {
 		current.velocity += addVelocity;
 		current.movementTime = 80;
+		player->UseForcePoints(5);
+		forceJumpTicks--;
+		}
 	}
 
 	// we may have a ground plane that is very steep, even
@@ -1531,6 +1537,8 @@ idPhysics_Player::idPhysics_Player( void ) {
 	ladderNormal.Zero();
 	waterLevel = WATERLEVEL_NONE;
 	waterType = 0;
+	//Dynamix
+	canForceJump = false;
 }
 
 /*

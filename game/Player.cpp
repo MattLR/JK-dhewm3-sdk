@@ -96,6 +96,15 @@ const idEventDef EV_Player_HideTip( "hideTip" );
 const idEventDef EV_Player_LevelTrigger( "levelTrigger" );
 const idEventDef EV_SpectatorTouch( "spectatorTouch", "et" );
 const idEventDef EV_Player_GetIdealWeapon( "getIdealWeapon", NULL, 's' );
+//Dynamix
+//const idEventDef EV_Player_DisableWeapon( "disableWeapon" );
+//const idEventDef EV_Player_DisableWeapon( "disableWeapon" );
+const idEventDef EV_Player_EnableForceRegen( "enableForceRegen" );
+const idEventDef EV_Player_DisableForceRegen( "disableForceRegen" );
+const idEventDef EV_Player_HideForceIcons( "hideForceIcons" );
+const idEventDef EV_Player_ShowForceIcons( "showForceIcons" );
+const idEventDef EV_Player_HideWeaponIcons( "hideWeaponIcons" );
+const idEventDef EV_Player_ShowWeaponIcons( "showWeaponIcons" );
 
 CLASS_DECLARATION( idActor, idPlayer )
 	EVENT( EV_Player_GetButtons,			idPlayer::Event_GetButtons )
@@ -118,6 +127,14 @@ CLASS_DECLARATION( idActor, idPlayer )
 	EVENT( EV_Player_GetIdealWeapon,		idPlayer::Event_GetIdealWeapon )
 	EVENT( EV_Weapon_StartAutoMelee,		idPlayer::Event_StartAutoMelee )		//proxy for weapon
 	EVENT( EV_Weapon_StopAutoMelee,			idPlayer::Event_StopAutoMelee )			//proxy for weapon
+	EVENT( EV_Player_EnableForceRegen,		idPlayer::Event_EnableForceRegen )			
+	EVENT( EV_Player_DisableForceRegen,		idPlayer::Event_DisableForceRegen )	
+	//Dynamix
+	EVENT( EV_Player_HideForceIcons,		idPlayer::Event_HideForceIcons )	
+	EVENT( EV_Player_ShowForceIcons,		idPlayer::Event_ShowForceIcons )	
+	EVENT( EV_Player_HideWeaponIcons,		idPlayer::Event_HideWeaponIcons )	
+	EVENT( EV_Player_ShowWeaponIcons,		idPlayer::Event_ShowWeaponIcons )	
+
 
 END_CLASS
 
@@ -746,8 +763,10 @@ bool idInventory::Give( idPlayer *owner, const idDict &spawnArgs, const char *st
 	const char				*end;
 	int						len;
 	idStr					weaponString;
+	idStr					forceString;
 	int						max;
 	const idDeclEntityDef	*weaponDecl;
+	const idDeclEntityDef	*forceDecl;
 	bool					tookWeapon;
 	int						amount;
 	idItemInfo				info;
@@ -816,6 +835,58 @@ bool idInventory::Give( idPlayer *owner, const idDict &spawnArgs, const char *st
 			}
 
 			if ( i >= MAX_WEAPONS ) {
+				gameLocal.Error( "Unknown weapon '%s'", weaponName.c_str() );
+			}
+
+			// cache the media for this weapon
+			weaponDecl = gameLocal.FindEntityDef( weaponName, false );
+
+			// don't pickup "no ammo" weapon types twice
+			// not for D3 SP .. there is only one case in the game where you can get a no ammo
+			// weapon when you might already have it, in that case it is more conistent to pick it up
+			if ( gameLocal.isMultiplayer && weaponDecl && ( weapons & ( 1 << i ) ) && !weaponDecl->dict.GetInt( "ammoRequired" ) ) {
+				continue;
+			}
+
+			if ( !gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) || ( weaponName == "weapon_fists" ) || ( weaponName == "weapon_soulcube" ) ) {
+				if ( ( weapons & ( 1 << i ) ) == 0 || gameLocal.isMultiplayer ) {
+					if ( owner->GetUserInfo()->GetBool( "ui_autoSwitch" ) && idealWeapon ) {
+						assert( !gameLocal.isClient );
+						*idealWeapon = i;
+					}
+					if ( owner->hud && updateHud && lastGiveTime + 1000 < gameLocal.time ) {
+						owner->hud->SetStateInt( "newWeapon", i );
+						owner->hud->HandleNamedEvent( "newWeapon" );
+						lastGiveTime = gameLocal.time;
+					}
+					weaponPulse = true;
+					weapons |= ( 1 << i );
+					tookWeapon = true;
+				}
+			}
+		}
+		return tookWeapon;
+	} else if ( !idStr::Icmp( statname, "forcePower" ) ) {
+		tookWeapon = false;
+		for( pos = value; pos != NULL; pos = end ) {
+			end = strchr( pos, ',' );
+			if ( end ) {
+				len = end - pos;
+				end++;
+			} else {
+				len = strlen( pos );
+			}
+
+			idStr weaponName( pos, 0, len );
+
+			// find the number of the matching weapon name
+			for( i = 0; i < MAX_FORCE_POWERS; i++ ) {
+				if ( weaponName == spawnArgs.GetString( va( "def_fp%d", i ) ) ) {
+					break;
+				}
+			}
+
+			if ( i >= MAX_FORCE_POWERS ) {
 				gameLocal.Error( "Unknown weapon '%s'", weaponName.c_str() );
 			}
 
@@ -997,6 +1068,7 @@ idPlayer::idPlayer() {
 	lastArmorPulse			= -10000;
 	stamina					= 0.0f;
 	healthPool				= 0.0f;
+	forcePool				= 0.0f;
 	nextHealthPulse			= 0;
 	healthPulse				= false;
 	nextHealthTake			= 0;
@@ -1053,8 +1125,10 @@ idPlayer::idPlayer() {
 	currentForcePower			= 0;
 	idealForcePower				= 0;
 	previousForcePower			= -1;
-	forcePowerSwitchTime			=  0;
+	forcePowerSwitchTime		=  0;
 	forcePowerEnabled			= true;
+	regenForce 					= true;
+	forceLevels[0]				= 3;
 
 	skin					= NULL;
 	powerUpSkin				= NULL;
@@ -1212,6 +1286,113 @@ void idPlayer::SetupWeaponEntity( void ) {
 
 /*
 ==============
+idPlayer::SetForcePower
+==============
+*/
+void idPlayer::SetForcePower( int weaponIndex ) {
+	
+	//SetForcePower is called after currentForcePower is set to idealForcePower
+	//if ( forcePower && weaponIndex == currentForcePower ) {
+	//	return;
+	//}
+	
+	// Clear the weapon entity
+	//delete forcePower.GetEntity();
+	//forcePower = NULL;
+
+	//previousForcePower	= currentForcePower;
+	//currentForcePower	= weaponIndex;
+	//weaponGone		= false;		
+	//forceGone = false;
+
+	//if ( weaponIndex < 0 ) {
+	//	weaponGone = true;
+		//forceGone = true;
+	//	return;
+	//}
+	
+	//animPrefix = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
+	idTypeInfo*	typeInfo;
+	//forceDef = GetForceDef( currentForcePower );
+	const char *objectType;
+	const char *objectname;
+	objectname = spawnArgs.GetString( va( "def_fp%d", weaponIndex ) );
+	forceDef = gameLocal.FindEntityDef( objectname );
+	if ( !forceDef ) {
+		gameLocal.Error( "Force definition not found for fp %d", weaponIndex ) ;
+	}
+
+	if ( !forceDef->dict.GetString( "weapon_scriptobject", NULL, &objectType ) ) {
+		gameLocal.Error( "SetForcePower No 'weapon_scriptobject' set on '%s'.", objectname );
+	}
+
+
+	typeInfo = idClass::GetClass( forceDef->dict.GetString( "forceclass", "jkSimpleForcePower" ) );
+	const char *forceType;
+	if ( ( !forceDef->dict.GetString("forceclass", NULL, &forceType ) ) && ( !forceDef->dict.GetString( "weapon_scriptobject", NULL, &objectType ) ) ) {
+		gameLocal.Error("No 'forceclass' or script object set");
+	}
+	gameLocal.DPrintf("%s\n", forceType);
+
+	//FIXME
+	//if ( !typeInfo || !typeInfo->IsType( jkSimpleForcePower::GetClassType() ) ) {
+	//	gameLocal.Error( "Invalid force class '%s' specified for force '%s'", animPrefix.c_str(), forceDef->dict.GetString ( "forceclass", "jkSimpleForcePower" ) );
+	//}
+
+	//forcePower = static_cast<jkSimpleForcePower*>( typeInfo->CreateInstance() );
+	//forcePower.GetEntity->Init( this, forceDef, currentForcePower );
+	//forcePower->CallSpawn( );		
+
+	forcePower.GetEntity()->Clear();
+	delete forcePower.GetEntity();
+	//currentWeaponObject = static_cast<rvmWeaponObject*>(typeInfo->CreateInstance());
+	forcePower = static_cast<jkSimpleForcePower *>( gameLocal.SpawnEntityType( *typeInfo, NULL ) );
+	//forcePower = static_cast<jkSimpleForcePower *>( gameLocal.SpawnEntityType( jkForcePush::Type, NULL ) );
+	//forcePower = static_cast<jkSimpleForcePower *>(typeInfo->CreateInstance());
+	forcePower.GetEntity()->SetOwner( this );
+	//forcePower.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ weaponIndex ] );
+	forcePower.GetEntity()->GetWeaponDef( objectname, inventory.clip[ weaponIndex ] );
+	//UpdateHudForcePower();  - Call this here to update when the actual change has occurred, otherwise called in next/prevForce for instant feedback
+
+	// Remove the "weapon_" from the anim prefect for the player world anims
+	//animPrefix.Strip( "fp_" );
+	
+	// Make sure weapon is hidden
+	//if ( !weaponEnabled ) {
+	//	Event_DisableWeapon( );
+	//}
+	
+}
+
+/*
+==============
+idPlayer::SetupForcePowerEntity
+==============
+*/
+void idPlayer::SetupForcePowerEntity( void ) {
+	int w;
+	const char *weap;
+
+	if ( forcePower.GetEntity() ) {
+		// get rid of old weapon
+		forcePower.GetEntity()->Clear();
+		currentForcePower = -1;
+	} else if ( !gameLocal.isClient ) {
+		forcePower = static_cast<jkSimpleForcePower *>( gameLocal.SpawnEntityType( jkForcePower::Type, NULL ) );
+		forcePower.GetEntity()->SetOwner( this );
+		currentForcePower = -1;
+	}
+
+	for( w = 0; w < MAX_FORCE_POWERS; w++ ) {
+		weap = spawnArgs.GetString( va( "def_fp%d", w ) );
+		if ( weap && *weap ) {
+			jkSimpleForcePower::CacheWeapon( weap );
+		}
+	}
+}
+
+/*
+==============
 idPlayer::Init
 ==============
 */
@@ -1236,8 +1417,8 @@ void idPlayer::Init( void ) {
 	weapon_fists			= SlotForWeapon( "weapon_fists" );
 	showWeaponViewModel		= GetUserInfo()->GetBool( "ui_showGun" );
 
-	currentForcePower			= 0;
-	idealForcePower			= 0;
+	currentForcePower			= -1;
+	idealForcePower				= -1;
 	previousForcePower			= -1;
 	forcePowerSwitchTime		= 0;
 
@@ -1290,8 +1471,12 @@ void idPlayer::Init( void ) {
 	healthTake		= false;
 
 	SetupWeaponEntity();
+	SetupForcePowerEntity();
 	currentWeapon = -1;
 	previousWeapon = -1;
+	//Don't know why this is a thing, Dynamix
+	currentForcePower			= -1;
+	previousForcePower			= -1;
 
 	heartRate = BASE_HEARTRATE;
 	AdjustHeartRate( BASE_HEARTRATE, 0.0f, 0.0f, true );
@@ -2351,6 +2536,8 @@ void idPlayer::RestorePersistantInfo( void ) {
 	health = spawnArgs.GetInt( "health", "100" );
 	if ( !gameLocal.isClient ) {
 		idealWeapon = spawnArgs.GetInt( "current_weapon", "1" );
+		//Dynamix, checking if this is where weapon number is set on map load
+		idealForcePower = 0;
 	}
 }
 
@@ -2520,12 +2707,16 @@ void idPlayer::UpdateHudAmmo( idUserInterface *_hud ) {
 
 	inclip		= weapon.GetEntity()->AmmoInClip();
 	ammoamount	= weapon.GetEntity()->AmmoAvailable();
-	if ( ammoamount < 0 || !weapon.GetEntity()->IsReady() ) {
+	//Dynamix don't hide ammo when weapon is hidden while using force, this seems to be fine but FIXME in case it needs to be better
+	if ( ammoamount < 0 /*|| !weapon.GetEntity()->IsReady()*/ ) {
 		// show infinite ammo
 		_hud->SetStateString( "player_ammo", "" );
 		_hud->SetStateString( "player_totalammo", "" );
 	} else {
 		// show remaining ammo
+		//Dynamix for ammo tics, needs to change per weapon to do it properly FIXME, also why are these strings? - doesn't matter can still use operators on them 
+		_hud->SetStateInt( "player_maxammo", 200 );
+
 		_hud->SetStateString( "player_totalammo", va( "%i", ammoamount - inclip ) );
 		_hud->SetStateString( "player_ammo", weapon.GetEntity()->ClipSize() ? va( "%i", inclip ) : "--" );		// how much in the current clip
 		_hud->SetStateString( "player_clips", weapon.GetEntity()->ClipSize() ? va( "%i", ammoamount / weapon.GetEntity()->ClipSize() ) : "--" );
@@ -2563,6 +2754,7 @@ void idPlayer::UpdateHudStats( idUserInterface *_hud ) {
 	_hud->SetStateInt( "player_armor", inventory.armor );
 	_hud->SetStateInt( "player_hr", heartRate );
 	_hud->SetStateInt( "player_nostamina", ( max_stamina == 0 ) ? 1 : 0 );
+	_hud->SetStateInt( "player_force", forcePool );
 
 	_hud->HandleNamedEvent( "updateArmorHealthAir" );
 
@@ -2618,7 +2810,7 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 	if ( !hud ) {
 		return;
 	}
-
+ 	/* Original code for multiplayer weapon carousel, replaced
 	for ( int i = 0; i < MAX_WEAPONS; i++ ) {
 		const char *weapnum = va( "def_weapon%d", i );
 		const char *hudWeap = va( "weapon%d", i );
@@ -2634,6 +2826,154 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 		}
 		hud->SetStateInt( hudWeap, weapstate );
 	}
+	*/
+
+	/*NEW FORCE CAROUSEL CODE
+	Show's the unselected power on the right, then right and left, then right right left etc
+	Only hard bit is getting the right icons in place, current force power is easy 
+	centre, right, left, right, left, right left
+	const char *hudIcon = va( "forceIconBG%d", i );
+	hud->SetStateString( "hudIcon",  icon) );
+	forceIconBG0
+	forceIconBG1
+	forceIconBG2
+	forceIconBG3
+	forceIconBG4
+	forceIconBG5
+	forceIconBG6
+	*/
+	int filledIcons = 0;
+	const char *icon5 = "gfx/mp/f_icon_speed";
+	//Fill in currently selected icon
+	const char *weapnum = va( "def_weapon%d", idealWeapon );
+	const char *currentForce;
+	//if ( ( inventory.weapons & ( 1 << idealWeapon )) != 0 ) {
+	if ( inventory.weapons & ( 1 << idealWeapon ) ) {
+		const char *weap = spawnArgs.GetString( weapnum );
+		const idDeclEntityDef*			weapD1;
+		weapD1 = gameLocal.FindEntityDef( weap );
+		if ( weap && *weap ) {
+		if ( ( !weapD1->dict.GetString("icon", NULL, &icon5 ) )  ) {
+			gameLocal.Error( " 1No 'icon' set on '%s'.", weap );		
+		}
+			//getweapondef and icon string when I can be bothered
+			weapD1->dict.GetString("inv_name", NULL, &currentForce);
+			hud->SetStateString( "forceIconBG0",  icon5 );
+			hud->SetStateString( "currentForceName",  currentForce );
+			const char *weapnum = va( "def_weapon%d", idealWeapon );
+
+			filledIcons++;
+		}
+	}
+
+	//Change 12 to max weapons/force later
+	int j = idealWeapon;
+	if ( j == MAX_WEAPONS) { j = 0; };
+	int k = idealWeapon;
+	bool done = false;
+
+	while ( (!done && (filledIcons < 7))) {
+		bool filledRight = false;
+		bool filledLeft = false;
+		while ( !filledRight ) {
+			j++;
+			if (j > MAX_WEAPONS) { j = 0; }
+			//Combine these or get rid of second one
+			if (j == idealWeapon) { 
+				done = true;
+				gameLocal.DPrintf("Done j == iw\n");
+				break; 
+			}
+			//I think this is a pointless check in theory
+			if ( j == k ) {
+				done = true;
+				gameLocal.DPrintf("Done j == k\n");
+				break;
+			}
+			weapnum = va( "def_weapon%d", j );
+			if ( (inventory.weapons & ( 1 << j )) ) {
+			//if (( inventory.weapons & ( 1 << j )) != 0)  {
+
+				const char *weap = spawnArgs.GetString( weapnum );
+				const idDeclEntityDef*			weapD;
+				weapD = gameLocal.FindEntityDef( weap );
+				if ( !weapD ) {
+					gameLocal.Error( "weapd not found") ;
+				}
+				//weapD->dict.GetString( "icon", NULL, &icon );
+				const char *icon2;
+				//const char *icon2 = weapD->dict.GetString( "icon");
+				//weapD->dict.GetString("icon", NULL, &icon2 );
+				if ( weap && *weap ) {
+					if ( ( !weapD->dict.GetString("icon", NULL, &icon2 ) )  ) {
+						continue;
+						gameLocal.Error( " 2No 'icon' set on '%s'.", weap );
+					}
+					const char *iconName = va( "forceIconBG%d", filledIcons );
+					gameLocal.DPrintf("HIT RIGHT%d\n", j);
+					gameLocal.DPrintf("FI:%d\n", filledIcons);
+					gameLocal.DPrintf("Icon%s\n", icon2);
+					//getweapondef and icon string when I can be bothered
+					hud->SetStateString( iconName,  icon2 );
+					filledIcons++;
+					filledRight = true;
+				}
+			}
+		}
+		if (done) { break; }
+		while ( !filledLeft ) {
+			//This runs second so check we're not done before cycling
+			k--;
+			if (k == -1) { k = MAX_WEAPONS; }
+			if ( k == j ) {
+				done = true;
+				gameLocal.DPrintf("Done k == j\n");
+				break;
+			}
+			weapnum = va( "def_weapon%d", k );
+			if ( inventory.weapons & ( 1 << k ) ) {
+				
+				const char *weap = spawnArgs.GetString( weapnum );
+				const idDeclEntityDef*			weapD;
+				weapD = gameLocal.FindEntityDef( weap );
+				if ( !weapD ) {
+					gameLocal.Error( "weapD not found") ;
+				}
+				const char *icon2;
+				if ( ( !weapD->dict.GetString("icon", NULL, &icon2 ) )  ) {
+					continue;
+					gameLocal.Error( " 3No 'icon' set on '%s'.", weap );
+				}
+				if ( weap && *weap ) {
+					const char *iconName = va( "forceIconBG%d", filledIcons );
+					gameLocal.DPrintf("HIT LEFT%d\n", k);
+					gameLocal.DPrintf("FI:%d\n", filledIcons);
+					gameLocal.DPrintf("IName%s\n", iconName);
+					gameLocal.DPrintf("Icon%s\n", icon2);
+					//getweapondef and icon string when I can be bothered
+					hud->SetStateString( iconName,  icon2 );
+					filledIcons++;
+					filledLeft = true;
+				}
+			}
+		}
+	}
+	//Put this into the while loop at some point FIXME
+	if (filledIcons < 6) {
+		while ( filledIcons < 7 ) {
+			const char *iconName = va( "forceIconBG%d", filledIcons );
+			hud->SetStateString( iconName,  "" );
+			filledIcons++;
+		}
+	}
+	//hud->HandleNamedEvent( "fifty" ); //Icon visibility handler
+	//hud->SetStateInt("showForceIcons", 0);
+	//hud->SetStateInt("showWeaponIcons", 1);
+	CancelEvents( &EV_Player_HideWeaponIcons );
+	PostEventMS(&EV_Player_HideForceIcons, 1);
+	PostEventMS(&EV_Player_ShowWeaponIcons, 1);
+	PostEventSec( &EV_Player_HideWeaponIcons, 3.0f );
+
 	if ( flashWeapon ) {
 		hud->HandleNamedEvent( "weaponChange" );
 	}
@@ -2658,23 +2998,169 @@ void idPlayer::UpdateHudForcePower( bool flashWeapon ) {
 	if ( !hud ) {
 		return;
 	}
-
-	for ( int i = 0; i < 4; i++ ) {
+	/* Original multiplayer weapon carousel based code, replaced
+	for ( int i = 0; i < 12; i++ ) {
 		//const char *weapnum = va( "def_weapon%d", 1 );
-		const char *hudWeap = va( "forcePower%d", i );
+		const char *hudWeap = va( "forcepower%d", i );
 		int weapstate = 0;
 		/*if ( inventory.weapons & ( 1 << i ) ) {
 			const char *weap = spawnArgs.GetString( weapnum );
 			if ( weap && *weap ) {
 				weapstate++;
-			}*/
-			if ( currentForcePower == i ) {
+			}
+			if ( idealForcePower == i ) {
 				//weapstate++;
 				weapstate = 2;
 			}
 		//}
 		hud->SetStateInt( hudWeap, weapstate );
 	}
+	*/
+	/*NEW FORCE CAROUSEL CODE
+	Show's the unselected power on the right, then right and left, then right right left etc
+	Only hard bit is getting the right icons in place, current force power is easy 
+	centre, right, left, right, left, right left
+	const char *hudIcon = va( "forceIconBG%d", i );
+	hud->SetStateString( "hudIcon",  icon) );
+	forceIconBG0
+	forceIconBG1
+	forceIconBG2
+	forceIconBG3
+	forceIconBG4
+	forceIconBG5
+	forceIconBG6
+	*/
+	int filledIcons = 0;
+	const char *icon5 = "gfx/mp/f_icon_speed";
+	//Fill in currently selected icon
+	const char *weapnum = va( "def_fp%d", idealForcePower );
+	const char *currentForce;
+	//if ( ( inventory.weapons & ( 1 << idealWeapon )) != 0 ) {
+	//if ( inventory.weapons & ( 1 << idealForcePower ) ) {
+		const char *weap = spawnArgs.GetString( weapnum );
+		const idDeclEntityDef*			weapD1;
+		weapD1 = gameLocal.FindEntityDef( weap );
+		if ( weap && *weap ) {
+		if ( ( !weapD1->dict.GetString("icon", NULL, &icon5 ) )  ) {
+			gameLocal.Error( " 1No 'icon' set on '%s'.", weap );		
+		}
+			//getweapondef and icon string when I can be bothered
+			weapD1->dict.GetString("inv_name", NULL, &currentForce);
+			hud->SetStateString( "forceIconBG0",  icon5 );
+			hud->SetStateString( "currentForceName",  currentForce );
+			const char *weapnum = va( "def_weapon%d", idealForcePower );
+
+			filledIcons++;
+		}
+	//}
+
+	//Change 12 to max weapons/force later
+	int j = idealForcePower;
+	if ( j == 12) { j = 0; };
+	int k = idealForcePower;
+	bool done = false;
+
+	while ( (!done && (filledIcons < 7))) {
+		bool filledRight = false;
+		bool filledLeft = false;
+		while ( !filledRight ) {
+			j++;
+			if (j > 12) { j = 0; }
+			//Combine these or get rid of second one
+			if (j == idealForcePower) { 
+				done = true;
+				gameLocal.DPrintf("Done j == ifp\n");
+				break; 
+			}
+			//I think this is a pointless check in theory
+			if ( j == k ) {
+				done = true;
+				gameLocal.DPrintf("Done j == k\n");
+				break;
+			}
+			weapnum = va( "def_fp%d", j );
+			//if ( (inventory.weapons & ( 1 << j )) ) {
+
+				const char *weap = spawnArgs.GetString( weapnum );
+				const idDeclEntityDef*			weapD;
+				weapD = gameLocal.FindEntityDef( weap );
+				if ( !weapD ) {
+					gameLocal.Error( "weapd not found") ;
+				}
+				//weapD->dict.GetString( "icon", NULL, &icon );
+				const char *icon2;
+				//const char *icon2 = weapD->dict.GetString( "icon");
+				//weapD->dict.GetString("icon", NULL, &icon2 );
+				if ( weap && *weap ) {
+					if ( ( !weapD->dict.GetString("icon", NULL, &icon2 ) )  ) {
+						continue;
+						gameLocal.Error( " 2No 'icon' set on '%s'.", weap );
+					}
+					const char *iconName = va( "forceIconBG%d", filledIcons );
+					gameLocal.DPrintf("HIT RIGHT%d\n", j);
+					gameLocal.DPrintf("FI:%d\n", filledIcons);
+					gameLocal.DPrintf("Icon%s\n", icon2);
+					//getweapondef and icon string when I can be bothered
+					hud->SetStateString( iconName,  icon2 );
+					filledIcons++;
+					filledRight = true;
+				}
+			//}
+		}
+		if (done) { break; }
+		while ( !filledLeft ) {
+			//This runs second so check we're not done before cycling
+			k--;
+			if (k == -1) { k = 12; }
+			if ( k == j ) {
+				done = true;
+				gameLocal.DPrintf("Done k == j\n");
+				break;
+			}
+			weapnum = va( "def_fp%d", k );
+			//if ( inventory.weapons & ( 1 << k ) ) {
+				
+				const char *weap = spawnArgs.GetString( weapnum );
+				const idDeclEntityDef*			weapD;
+				weapD = gameLocal.FindEntityDef( weap );
+				if ( !weapD ) {
+					gameLocal.Error( "weapD not found") ;
+				}
+				const char *icon2;
+				if ( ( !weapD->dict.GetString("icon", NULL, &icon2 ) )  ) {
+					continue;
+					gameLocal.Error( " 3No 'icon' set on '%s'.", weap );
+				}
+				if ( weap && *weap ) {
+					const char *iconName = va( "forceIconBG%d", filledIcons );
+					gameLocal.DPrintf("HIT LEFT%d\n", k);
+					gameLocal.DPrintf("FI:%d\n", filledIcons);
+					gameLocal.DPrintf("IName%s\n", iconName);
+					gameLocal.DPrintf("Icon%s\n", icon2);
+					//getweapondef and icon string when I can be bothered
+					hud->SetStateString( iconName,  icon2 );
+					filledIcons++;
+					filledLeft = true;
+				}
+			//}
+		}
+	}
+	//Put this into the while loop at some point FIXME
+	if (filledIcons < 6) {
+		while ( filledIcons < 7 ) {
+			const char *iconName = va( "forceIconBG%d", filledIcons );
+			hud->SetStateString( iconName,  "" );
+			filledIcons++;
+		}
+	}
+
+	//FIXME Dynamix make event for this and post it 
+	//hud->SetStateInt("showWeaponIcons", 0);
+	//hud->SetStateInt("showForceIcons", 1);
+	CancelEvents( &EV_Player_HideForceIcons );
+	PostEventMS(&EV_Player_HideWeaponIcons, 1);
+	PostEventMS(&EV_Player_ShowForceIcons, 1);
+	PostEventSec( &EV_Player_HideForceIcons, 3.0f );
 	if ( flashWeapon ) {
 		hud->HandleNamedEvent( "forcePowerChange" );
 	}
@@ -2694,6 +3180,7 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 	UpdateHudStats( _hud );
 
 	_hud->SetStateString( "weapicon", weapon.GetEntity()->Icon() );
+	//_hud->SetStateString( "activeForceBG", forcePower.GetEntity()->Icon() );
 
 	// FIXME: this is temp to allow the sound meter to show up in the hud
 	// it should be commented out before shipping but the code can remain
@@ -2856,6 +3343,7 @@ void idPlayer::StopFiring( void ) {
 		weapon.GetEntity()->EndAttack();
 		weapon.GetEntity()->EndAttackAlt();
 	}
+	weapon.GetEntity()->EndAttack();
 }
 
 /*
@@ -2974,6 +3462,48 @@ void idPlayer::CacheWeapons( void ) {
 			} else {
 				inventory.weapons &= ~( 1 << w );
 			}
+		}
+	}
+}
+
+/*
+===============
+idPlayer::FireForce
+===============
+*/
+void idPlayer::FireForce( void ) {
+	idMat3 axis;
+	idVec3 muzzle;
+
+	if ( privateCameraView ) {
+		return;
+	}
+
+	if ( !hiddenWeapon && forcePower.GetEntity()->IsReady() ) {
+		if ( forcePower.GetEntity()->AmmoInClip() || forcePower.GetEntity()->AmmoAvailable() ) {
+			//AI_ATTACK_HELD = true;
+			forcePower.GetEntity()->BeginAttack();
+			/*
+			if ( ( weapon_soulcube >= 0 ) && ( currentWeapon == weapon_soulcube ) ) {
+				if ( hud ) {
+					hud->HandleNamedEvent( "soulCubeNotReady" );
+				}
+				SelectWeapon( previousWeapon, false );
+			}
+			*/
+		} else {
+			//NextBestWeapon();
+		}
+	}
+
+	if ( hud ) {
+		if ( tipUp ) {
+			HideTip();
+		}
+		// may want to track with with a bool as well
+		// keep from looking up named events so often
+		if ( objectiveUp ) {
+			HideObjective();
 		}
 	}
 }
@@ -3142,6 +3672,54 @@ float idPlayer::PowerUpModifier( int type ) {
 		}
 	}
 
+	return mod;
+}
+
+/*
+===============
+idPlayer::StatusEffectModifier
+===============
+*/
+float idPlayer::StatusEffectModifier( int type ) {
+	float mod = 1.0f;
+
+	for (int i = 0; i < statusEffects.Num(); i++) {
+		if (statusEffects[i].type == type) {
+			mod *= statusEffects[i].power;
+		}
+	}
+	/*
+	if ( PowerUpActive( BERSERK ) ) {
+		switch( type ) {
+			case SPEED: {
+				mod *= 1.7f;
+				break;
+			}
+			case PROJECTILE_DAMAGE: {
+				mod *= 2.0f;
+				break;
+			}
+			case MELEE_DAMAGE: {
+				mod *= 30.0f;
+				break;
+			}
+			case MELEE_DISTANCE: {
+				mod *= 2.0f;
+				break;
+			}
+		}
+	}
+
+	if ( gameLocal.isMultiplayer && !gameLocal.isClient ) {
+		if ( PowerUpActive( MEGAHEALTH ) ) {
+			if ( healthPool <= 0 ) {
+				GiveHealthPool( 100 );
+			}
+		} else {
+			healthPool = 0;
+		}
+	}
+	*/
 	return mod;
 }
 
@@ -3316,6 +3894,21 @@ void idPlayer::UpdatePowerUps( void ) {
 		}
 		nextHealthTake = gameLocal.time + g_healthTakeTime.GetInteger() * 1000;
 		healthTake = true;
+	}
+}
+
+/*
+==============
+idPlayer::UpdateStatusEffects
+==============
+*/
+void idPlayer::UpdateStatusEffects( void ) {
+	for (int i = 0; i < statusEffects.Num(); i++) {
+		if (statusEffects[i].endTime < gameLocal.time) {
+			statusEffects.RemoveIndex(i);
+			//Dynamix temp for testing FIXME
+			hud->SetStateString( "activeForceBG", "" );
+		}
 	}
 }
 
@@ -3623,6 +4216,7 @@ void idPlayer::Reload( void ) {
 
 	if ( weapon.GetEntity() && weapon.GetEntity()->IsLinked() ) {
 		weapon.GetEntity()->Reload();
+		forcePower.GetEntity()->Reload();
 	}
 }
 
@@ -4052,6 +4646,116 @@ void idPlayer::Weapon_Combat( void ) {
 
 /*
 ===============
+idPlayer::Force_Combat
+===============
+*/
+void idPlayer::Force_Combat( void ) {
+	//add forceEnabled bool TODO FIXME dynamix and the weaponcatchup and weapongone things need fixing
+	if ( influenceActive || gameLocal.inCinematic || privateCameraView ) {
+		return;
+	}
+	forcePower.GetEntity()->RaiseWeapon();
+	/*
+	if ( forcePower.GetEntity()->IsReloading() ) {
+		if ( !AI_RELOAD ) {
+			AI_RELOAD = true;
+			SetState( "ReloadWeapon" );
+			UpdateScript();
+		}
+	} else {
+		AI_RELOAD = false;
+	}
+	*/
+
+	if ( idealForcePower != currentForcePower ) {
+		if ( weaponCatchup ) {
+			assert( gameLocal.isClient );
+
+			currentForcePower = idealForcePower;
+			weaponGone = false;
+			SetForcePower( idealForcePower );
+			animPrefix = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
+			forcePower.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ currentForcePower ] );
+			animPrefix.Strip( "weapon_" );
+
+			forcePower.GetEntity()->NetCatchup();
+			const function_t *newstate = GetScriptFunction( "NetCatchup" );
+			if ( newstate ) {
+				SetState( newstate );
+				UpdateScript();
+			}
+			weaponCatchup = false;
+		} else {
+			if ( forcePower.GetEntity()->IsReady() ) {
+				forcePower.GetEntity()->PutAway();
+			}
+
+			if ( forcePower.GetEntity()->IsHolstered() ) {
+				assert( idealForcePower >= 0 );
+				assert( idealForcePower < MAX_FORCE_POWERS );
+
+				if ( currentForcePower != weapon_pda && !spawnArgs.GetBool( va( "weapon%d_toggle", currentForcePower ) ) ) {
+					previousForcePower = currentForcePower;
+				}
+				currentForcePower = idealForcePower;
+				weaponGone = false;
+				SetForcePower( idealForcePower );
+				animPrefix = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
+				forcePower.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ currentForcePower ] );
+				animPrefix.Strip( "weapon_" );
+
+				forcePower.GetEntity()->Raise();
+			}
+		}
+	} else {
+		weaponGone = false;	// if you drop and re-get weap, you may miss the = false above
+		if ( forcePower.GetEntity()->IsHolstered() ) {
+			if ( !forcePower.GetEntity()->AmmoAvailable() ) {
+				// weapons can switch automatically if they have no more ammo
+				//NextBestWeapon();
+			} else {
+				forcePower.GetEntity()->Raise();
+				state = GetScriptFunction( "RaiseWeapon" );
+				if ( state ) {
+					SetState( state );
+				}
+			}
+		}
+	}
+
+	// check for attack
+	//AI_WEAPON_FIRED = false;
+	//AI_WEAPON_FIRED_ALT = false;
+	if ( !influenceActive ) {
+		if ( ( usercmd.buttons & BUTTON_6 ) && !weaponGone ) {
+			FireForce();
+		} else if ( oldButtons & BUTTON_6 ) {
+			//AI_ATTACK_HELD = false;
+			forcePower.GetEntity()->EndAttack();
+		}
+	
+	// check for altfire
+		/*
+		if ( ( usercmd.buttons & BUTTON_5 ) && !weaponGone ) {  // BUTTON_5 is used for alt fires
+			FireWeaponAlt();	// The condition holds True when key is being tapped rather than held
+		} else if ( oldButtons & BUTTON_5 ) {
+			//AI_ATTACK_HELD_ALT = false;
+			forcePower.GetEntity()->EndAttackAlt();
+		}
+		*/
+	}
+		
+	// update our ammo clip in our inventory
+	if ( ( currentWeapon >= 0 ) && ( currentWeapon < MAX_WEAPONS ) ) {
+		inventory.clip[ currentWeapon ] = weapon.GetEntity()->AmmoInClip();
+		if ( hud && ( currentWeapon == idealWeapon ) ) {
+			UpdateHudAmmo( hud );
+		}
+	}
+}
+
+/*
+===============
 idPlayer::Weapon_NPC
 ===============
 */
@@ -4209,6 +4913,54 @@ void idPlayer::UpdateWeapon( void ) {
 
 	// update weapon state, particles, dlights, etc
 	weapon.GetEntity()->PresentWeapon( showWeaponViewModel );
+}
+
+/*
+===============
+idPlayer::UpdateForcePower
+===============
+*/
+void idPlayer::UpdateForcePower( void ) {
+	if ( health <= 0 ) {
+		return;
+	}
+	
+	assert( !spectating );
+
+	if ( gameLocal.isClient ) {
+		// clients need to wait till the weapon and it's world model entity
+		// are present and synchronized ( weapon.worldModel idEntityPtr to idAnimatedEntity )
+		if ( !forcePower.GetEntity()->IsWorldModelReady() ) {
+			return;
+		}
+	}
+
+	// always make sure the weapon is correctly setup before accessing it
+	if ( !forcePower.GetEntity()->IsLinked() ) {
+		if ( idealForcePower != -1 ) {
+			animPrefix = spawnArgs.GetString( va( "def_fp%d", idealForcePower ) );
+			forcePower.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ idealForcePower ]);
+			SetForcePower( idealForcePower );
+			//forceCatchup = false;
+			assert( forcePower.GetEntity()->IsLinked() );
+		} else {
+			return;
+		}
+	}
+
+	if ( hiddenWeapon && tipUp && usercmd.buttons & BUTTON_ATTACK ) {
+		HideTip();
+	}
+	
+	Force_Combat();
+
+	if ( hiddenWeapon ) {
+		forcePower.GetEntity()->LowerWeapon();
+	}
+
+	// update weapon state, particles, dlights, etc
+	//FIXME Dynamix, workaround until I make a real force power class, although this will be similar anyway I guess
+	forcePower.GetEntity()->PresentWeapon( 0 );
 }
 
 /*
@@ -5258,6 +6010,39 @@ void idPlayer::UpdateAir( void ) {
 
 /*
 ==============
+idPlayer::UpdateForce
+==============
+*/
+void idPlayer::UpdateForce( void ) {
+	float rate;
+	rate = 5.0f;
+
+	if ( health <= 0 ) {
+		return;
+	}
+	if ( forcePool < 0 ) {
+			forcePool = 0;
+	}
+
+	if ( regenForce == false ) {
+		rate = 0.0f;
+	}
+
+	forcePool += rate * MS2SEC( gameLocal.msec );
+	if ( forcePool > 100.0f ) {
+		forcePool = 100.0f;
+	}
+
+	if ( forcePool >= 5.0f ) {
+		physicsObj.canForceJump = true;
+	} else {
+		physicsObj.canForceJump = false;
+	}
+
+}
+
+/*
+==============
 idPlayer::AddGuiPDAData
 ==============
  */
@@ -5509,10 +6294,12 @@ void idPlayer::TogglePDA( void ) {
 		return;
 	}
 
+	/*
 	if ( inventory.pdas.Num() == 0 ) {
 		ShowTip( spawnArgs.GetString( "text_infoTitle" ), spawnArgs.GetString( "text_noPDA" ), true );
 		return;
 	}
+	*/
 
 	assert( hud );
 
@@ -5770,11 +6557,12 @@ void idPlayer::PerformImpulse( int impulse ) {
 			// when we're not in single player, IMPULSE_19 is used for showScores
 			// otherwise it opens the pda
 			if ( !gameLocal.isMultiplayer ) {
-				if ( objectiveSystemOpen ) {
+				//Dynamix FIXME test
+				//if ( objectiveSystemOpen ) {
 					TogglePDA();
-				} else if ( weapon_pda >= 0 ) {
+				/*} else if ( weapon_pda >= 0 ) {
 					SelectWeapon( weapon_pda, true );
-				}
+				}*/
 			}
 			break;
 		}
@@ -5904,6 +6692,7 @@ void idPlayer::AdjustSpeed( void ) {
 			bobFrac = stamina / pm_staminathreshold.GetFloat();
 		}
 		speed = pm_walkspeed.GetFloat() * ( 1.0f - bobFrac ) + pm_runspeed.GetFloat() * bobFrac;
+		
 	} else {
 		rate = pm_staminarate.GetFloat();
 
@@ -5921,6 +6710,7 @@ void idPlayer::AdjustSpeed( void ) {
 	}
 
 	speed *= PowerUpModifier(SPEED);
+	speed *=StatusEffectModifier(FORCESPEED);
 
 	if ( influenceActive == INFLUENCE_LEVEL3 ) {
 		speed *= 0.33f;
@@ -6227,6 +7017,8 @@ void idPlayer::Move( void ) {
 	}
 
 	if ( AI_JUMP ) {
+		//Dynamix, reset force jump ticks
+		physicsObj.forceJumpTicks = 5;
 		// bounce the view weapon
 		loggedAccel_t	*acc = &loggedAccel[currentLoggedAccel&(NUM_LOGGED_ACCELS-1)];
 		currentLoggedAccel++;
@@ -6454,6 +7246,9 @@ void idPlayer::Think( void ) {
 	if ( ( usercmd.buttons ^ oldCmd.buttons ) & BUTTON_ZOOM ) {
 		if ( ( usercmd.buttons & BUTTON_ZOOM ) && weapon.GetEntity() ) {
 			zoomFov.Init( gameLocal.time, 200.0f, CalcFov( false ), weapon.GetEntity()->GetZoomFov() );
+			//Zoom sensitivity hack for now, should be engine side I think
+			cvarSystem->SetCVarString( "m_yaw", "0.0044" );
+			cvarSystem->SetCVarString( "m_pitch", "0.0044" );
 			zoomed = true;
 		/*
 		if ( player->scoreBoardOpen || gameState == GAMEREVIEW ) {
@@ -6463,6 +7258,8 @@ void idPlayer::Think( void ) {
 		}*/
 		} else {
 			zoomFov.Init( gameLocal.time, 200.0f, zoomFov.GetCurrentValue( gameLocal.time ), DefaultFov() );
+			cvarSystem->SetCVarString( "m_yaw", "0.022" );
+			cvarSystem->SetCVarString( "m_pitch", "0.022" );
 			zoomed = false;
 		}
 	}
@@ -6541,13 +7338,18 @@ void idPlayer::Think( void ) {
 		UpdateSpectating();
 	} else if ( health > 0 ) {
 		UpdateWeapon();
+		UpdateForcePower();
 	}
 
 	UpdateAir();
 
+	UpdateForce();
+
 	UpdateHud();
 
 	UpdatePowerUps();
+
+	UpdateStatusEffects();
 
 	UpdateDeathSkin( false );
 
@@ -6798,6 +7600,31 @@ void idPlayer::DamageFeedback( idEntity *victim, idEntity *inflictor, int &damag
 }
 
 /*
+==============
+idPlayer::GetWeaponDef
+==============
+*/
+const idDeclEntityDef* idPlayer::GetForceDef ( int forceIndex ) {
+	//FIXME
+	if ( cachedWeaponDefs[forceIndex] ) {
+		return cachedWeaponDefs[forceIndex];
+	}
+
+	idStr forcePower;
+	forcePower = spawnArgs.GetString ( va("def_fp%d", forceIndex ) );
+	if ( !forcePower.Length() ) {
+		return NULL;
+	}
+		
+	cachedWeaponDefs[forceIndex] = gameLocal.FindEntityDef ( forcePower, false );
+	if ( !cachedWeaponDefs[forceIndex] ) {
+		gameLocal.Error( "Could not find weapon definition '%s'", forcePower.c_str() );
+	}	
+	
+	return cachedWeaponDefs[forceIndex];
+}
+
+/*
 =================
 idPlayer::CalcDamagePoints
 
@@ -6813,6 +7640,7 @@ void idPlayer::CalcDamagePoints( idEntity *inflictor, idEntity *attacker, const 
 
 	damageDef->GetInt( "damage", "20", damage );
 	damage = GetDamageForLocation( damage, location );
+	damage *=StatusEffectModifier(PROTECT);
 
 	idPlayer *player = attacker->IsType( idPlayer::Type ) ? static_cast<idPlayer*>(attacker) : NULL;
 	if ( !gameLocal.isMultiplayer ) {
@@ -6837,6 +7665,9 @@ void idPlayer::CalcDamagePoints( idEntity *inflictor, idEntity *attacker, const 
 	}
 
 	damage *= damageScale;
+	if ( damage < 1 ) {
+		damage = 1;
+	}
 
 	// always give half damage if hurting self
 	if ( attacker == this ) {
@@ -8083,6 +8914,7 @@ void idPlayer::ClientPredictionThink( void ) {
 
 	if ( !gameLocal.inCinematic && weapon.GetEntity() && ( health > 0 ) && !( gameLocal.isMultiplayer && spectating ) ) {
 		UpdateWeapon();
+		UpdateForcePower();
 	}
 
 	UpdateHud();
@@ -8766,6 +9598,13 @@ idPlayer::UseForce
 ===============
 */
 void idPlayer::UseForce( void ) {
+
+	//if (  forcePower.GetEntity()->IsReady() ) {
+	forcePower.GetEntity()->BeginAttack();
+
+	//forcePower.GetEntity()->EndAttack();
+	//}
+	/*
 	int forceLevel = 1;
 	//int currentForcePower = 2;
 	switch( currentForcePower ) {
@@ -8935,7 +9774,7 @@ void idPlayer::UseForce( void ) {
 			break;
 		}
 	}
-
+	*/
 }
 /*
 ===============
@@ -8945,13 +9784,19 @@ idPlayer::NextForce
 
 //There's loads of code in combat that actually does weapon swaps, I'm not dealing with multiplayer yet so just swap the weapon and fix it later
 void idPlayer::NextForce( void ) {
-	currentForcePower++;
-		if ( currentForcePower > 3 ) {
-			currentForcePower = 0;
-		}
-	/*
+	int f;
+
+	f = idealForcePower;
+	f++;
+
+	if ( f > 12 ) {
+		f = 0;
+	}
+	
+	idealForcePower = f;
+	
 	const char *weap;
-	int w;
+	
 
 	if ( !weaponEnabled || spectating || hiddenWeapon || gameLocal.inCinematic || gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) || health < 0 ) {
 		return;
@@ -8962,10 +9807,14 @@ void idPlayer::NextForce( void ) {
 	}
 
 	// check if we know any force powers
+	//FIXME DYNAMIX
+	/*
 	if ( !inventory.forcePowers ) {
-		gameLocal.Printf("wowlwowlw2");
+		gameLocal.Printf("No force powers \n");
 		return;
 	}
+		*/
+	/*
 	w = idealForcePower;
 	while( 1 ) {
 		gameLocal.Printf("wowlwowlw3");
@@ -8986,7 +9835,7 @@ void idPlayer::NextForce( void ) {
 			break;
 	}
 	gameLocal.Printf("wow4");
-	gameLocal.Printf("'currentWeapon'");
+	
 	if ( ( w != currentForcePower ) && ( w != idealForcePower ) ) {
 		idealForcePower = w;
 		forcePowerSwitchTime = gameLocal.time + FORCE_SWITCH_DELAY;
@@ -8995,7 +9844,10 @@ void idPlayer::NextForce( void ) {
 		gameLocal.Printf("wow5");
 		gameLocal.Printf("'%d'");
 	} */
-		UpdateHudForcePower();
+		//currentForcePower = idealForcePower;
+		//idealForcePower = f;
+		gameLocal.DPrintf("idealForce %d, currentForce %d\n", idealForcePower, currentForcePower);
+		UpdateHudForcePower();//Call here for instant UI feedback, call in setForcePower to only show the change after the power is useable
 }
 /*
 ===============
@@ -9042,4 +9894,84 @@ void idPlayer::PrevForce( void ) {
 		forcePowerSwitchTime = gameLocal.time + FORCE_SWITCH_DELAY;
 		//UpdateHudForce();
 	}
+}
+
+/*
+===============
+idPlayer::UseForcePoints
+===============
+*/
+bool idPlayer::UseForcePoints( float amount ) {
+	if (amount > forcePool) {
+		return false;
+	}
+	forcePool -= amount;
+	return true;
+}
+
+/*
+===============
+idPlayer::UseForcePoints
+===============
+*/
+bool idPlayer::UseForcePoints( float amount, int alignment, int type ) {
+	if (amount > forcePool) {
+		return false;
+	}
+	forcePool -= amount;
+	return true;
+}
+
+/*
+===============
+idPlayer::Event_EnableForceRegen
+===============
+*/
+void idPlayer::Event_EnableForceRegen() {
+	regenForce = true;
+}
+
+/*
+===============
+idPlayer::Event_DisableForceRegen
+===============
+*/
+void idPlayer::Event_DisableForceRegen() {
+	regenForce = false;
+}
+
+/*
+===============
+idPlayer::Event_HideForceIcons
+===============
+*/
+void idPlayer::Event_HideForceIcons() {
+	hud->SetStateInt("showForceIcons", 0);
+}
+
+/*
+===============
+idPlayer::Event_ShowForceIcons
+===============
+*/
+void idPlayer::Event_ShowForceIcons() {
+	hud->SetStateInt("showForceIcons", 1);
+}
+
+/*
+===============
+idPlayer::Event_HideWeaponIcons
+===============
+*/
+void idPlayer::Event_HideWeaponIcons() {
+	hud->SetStateInt("showWeaponIcons", 0);
+}
+
+/*
+===============
+idPlayer::Event_ShowWeaponIcons
+===============
+*/
+void idPlayer::Event_ShowWeaponIcons() {
+	hud->SetStateInt("showWeaponIcons", 1);
 }
