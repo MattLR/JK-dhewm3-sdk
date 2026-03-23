@@ -90,6 +90,8 @@ idAnimManager				animationLib;
 idGameLocal					gameLocal;
 idGame *					game = &gameLocal;	// statically pointed at an idGameLocal
 
+const float idGameLocal::msecPrecise = 1000.0f/60.0f;
+
 const char *idGameLocal::sufaceTypeNames[ MAX_SURFACE_TYPES ] = {
 	"none",	"metal", "stone", "flesh", "wood", "cardboard", "liquid", "glass", "plastic",
 	"ricochet", "surftype10", "surftype11", "surftype12", "surftype13", "surftype14", "surftype15"
@@ -213,6 +215,7 @@ void idGameLocal::Clear( void ) {
 	framenum = 0;
 	previousTime = 0;
 	time = 0;
+	msec = USERCMD_MSEC;
 	vacuumAreaNum = 0;
 	mapFileName.Clear();
 	mapFile = NULL;
@@ -2190,6 +2193,16 @@ void idGameLocal::SortActiveEntityList( void ) {
 	sortPushers = false;
 }
 
+// dezo2/DG: returns number of milliseconds for this frame, either 1000/gameHz or 1000/gameHz + 1,
+//   (16 or 17) so the frametimes of gameHz frames add up to 1000ms.
+//   This prevents animations or videos from running slightly to slow or running out of sync
+//   with audio in cutscenes (those only worked right at 62.5fps with exactly 16ms frames,
+//   but now even without vsync we're enforcing 16.666ms frames for proper 60fps)
+static int CalcMSec( long long framenum ) {
+	long long divisor = 100LL * USERCMD_HZ;
+	return int( (framenum * 100000LL) / divisor - ((framenum-1) * 100000LL) / divisor );
+}
+
 /*
 ================
 idGameLocal::RunFrame
@@ -2226,6 +2239,7 @@ gameReturn_t idGameLocal::RunFrame( const usercmd_t *clientCmds ) {
 		// update the game time
 		framenum++;
 		previousTime = time;
+		msec = CalcMSec( framenum ); // dezo2/DG: recalculate each frame, see comment at CalcMSec()
 		time += msec;
 		realClientTime = time;
 
@@ -3595,7 +3609,7 @@ idGameLocal::AlertAI
 void idGameLocal::AlertAI( idEntity *ent ) {
 	if ( ent && ent->IsType( idActor::Type ) ) {
 		// alert them for the next frame
-		lastAIAlertTime = time + msec;
+		lastAIAlertTime = time + msecPrecise;
 		lastAIAlertEntity = static_cast<idActor *>( ent );
 	}
 }
@@ -4000,7 +4014,7 @@ void idGameLocal::SetCamera( idCamera *cam ) {
 
 	} else {
 		inCinematic = false;
-		cinematicStopTime = time + msec;
+		cinematicStopTime = time + msecPrecise;
 
 		// restore r_znear
 		cvarSystem->SetCVarFloat( "r_znear", 3.0f );

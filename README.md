@@ -18,9 +18,14 @@ the source under GPL; you can find these in their own branches:
 [Blood Mod](https://github.com/dhewm/dhewm3-sdk/tree/bloodmod),
 [Classic Doom 3](https://github.com/dhewm/dhewm3-sdk/tree/cdoom),
 [Denton's Enhanced Doom3](https://github.com/dhewm/dhewm3-sdk/tree/dentonmod),
+[Desolated - The Crying Fate](https://github.com/dhewm/dhewm3-sdk/tree/desolated),
+[ELDOOM](https://github.com/dhewm/dhewm3-sdk/tree/eldoom),
 [Fitz Packerton](https://github.com/dhewm/dhewm3-sdk/tree/fitz),
+[Grimm: Quest for the Gatherer's Key](https://github.com/dhewm/dhewm3-sdk/tree/grimm)
 [Hard Corps](https://github.com/dhewm/dhewm3-sdk/tree/hardcorps),
+[HeXen: Edge Of Chaos](https://github.com/dhewm/dhewm3-sdk/tree/eoc),
 [Perfected Doom 3](https://github.com/dhewm/dhewm3-sdk/tree/perfected),
+[Real Gibs](https://github.com/dhewm/dhewm3-sdk/tree/realgibs),
 [Scarlet **Rivensin**: The Ruiner](https://github.com/dhewm/dhewm3-sdk/tree/rivensin),
 [Doom3: The Lost Mission](https://github.com/dhewm/dhewm3-sdk/tree/d3le) and
 [Sikkmod](https://github.com/dhewm/dhewm3-sdk/tree/sikkmod)
@@ -34,6 +39,11 @@ dhewm3 1.5.x at [the dhewm3 Github release page](https://github.com/dhewm/dhewm3
 (the dhewm3-mods-1.5.* archives).
 
 ## How to build
+
+See the [mods branch](https://github.com/dhewm/dhewm3-sdk/tree/mods) for a way to build several/all
+mods at once in a partly-automated way.
+
+Manual building:
 
 ### On Windows
 
@@ -415,3 +425,6 @@ There are two ways to make a GUI use this:
    see https://github.com/dhewm/dhewm3-sdk/commit/5070b8c7ec6f3a8ba1cb4123de37732f9cd9437f for an example.
    
    Also note that you can *not* generally inject variables into GUIs like that from C++, dhewm3 has special code to make the `"scaleto43"` case work.
+
+Since **1.5.5** there are **additional GUI improvements** (you can create aspect-ratio-independent
+fullscreen GUIs), see https://github.com/dhewm/dhewm3/blob/master/docs/GUIs.md
