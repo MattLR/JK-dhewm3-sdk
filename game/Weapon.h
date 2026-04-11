@@ -134,6 +134,7 @@ public:
 	// Visual presentation
 	void					PresentWeapon( bool showViewModel );
 	int						GetZoomFov( void );
+	idUserInterface*		GetZoomGui( void );
 	void					GetWeaponAngleOffsets( int *average, float *scale, float *max );
 	void					GetWeaponTimeOffsets( float *time, float *scale );
 	bool					BloodSplat( float size );
@@ -282,6 +283,7 @@ private:
 
 	// zoom
 	int						zoomFov;			// variable zoom fov per weapon
+	idUserInterface*		zoomGui;			// whether or not to overlay a zoom scope
 
 	// joints from models
 	jointHandle_t			barrelJointView;

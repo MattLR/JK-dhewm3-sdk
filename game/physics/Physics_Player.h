@@ -69,6 +69,9 @@ typedef struct playerPState_s {
 	int						movementType;
 	int						movementFlags;
 	int						movementTime;
+	//Dynamix
+	idMat3					localAxis;					// axis relative to master
+
 } playerPState_t;
 
 class idPhysics_Player : public idPhysics_Actor {

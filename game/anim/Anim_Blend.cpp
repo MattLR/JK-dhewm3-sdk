@@ -4519,6 +4519,24 @@ bool idAnimator::GetJointTransform( jointHandle_t jointHandle, int currentTime, 
 
 /*
 =====================
+idAnimator::GetJointTransform
+
+=====================
+*/
+bool idAnimator::GetJointTransform( jointHandle_t jointHandle, int currentTime, idVec3 &offset ) {
+	if ( ( jointHandle < 0 ) || ( jointHandle >= modelDef->NumJoints() ) ) {
+		return false;
+	}
+
+	CreateFrame( currentTime, false );
+
+	offset = joints[ jointHandle ].ToVec3();
+
+	return true;
+}
+
+/*
+=====================
 idAnimator::GetJointLocalTransform
 =====================
 */

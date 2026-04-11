@@ -60,6 +60,8 @@ extern idCVar	g_debugScript;
 extern idCVar	g_debugMover;
 extern idCVar	g_debugTriggers;
 extern idCVar	g_debugCinematic;
+//Dynamix
+extern idCVar   g_debugVehicle;
 extern idCVar	g_stopTime;
 extern idCVar	g_armorProtection;
 extern idCVar	g_armorProtectionMP;

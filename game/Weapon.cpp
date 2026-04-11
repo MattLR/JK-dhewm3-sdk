@@ -1040,6 +1040,7 @@ void idWeapon::GetWeaponDef( const char *objectname, int ammoinclip ) {
 	}
 
 	zoomFov = weaponDef->dict.GetInt( "zoomFov", "70" );
+	zoomGui  = uiManager->FindGui ( weaponDef->dict.GetString ( "zoomGUI", "" ), true );
 	berserk = weaponDef->dict.GetInt( "berserk", "2" );
 
 	weaponAngleOffsetAverages = weaponDef->dict.GetInt( "weaponAngleOffsetAverages", "10" );
@@ -2177,6 +2178,15 @@ idWeapon::GetZoomFov
 */
 int	idWeapon::GetZoomFov( void ) {
 	return zoomFov;
+}
+
+/*
+================
+idWeapon::GetZoomGui
+================
+*/
+idUserInterface* idWeapon::GetZoomGui ( void ) {
+	return zoomGui;
 }
 
 /*

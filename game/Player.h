@@ -440,7 +440,9 @@ public:
 	void					CalculateViewWeaponPos( idVec3 &origin, idMat3 &axis );
 	idVec3					GetEyePosition( void ) const;
 	void					GetViewPos( idVec3 &origin, idMat3 &axis ) const;
+	void					OffsetThirdPersonVehicleView( bool clip); //Dynamix
 	void					OffsetThirdPersonView( float angle, float range, float height, bool clip );
+
 
 	bool					Give( const char *statname, const char *value );
 	bool					GiveItem( idItem *item );
@@ -562,6 +564,9 @@ public:
 	idAnimatedEntity*		GetWeaponWorldModel ( void ) const;
 	int						GetCurrentWeapon	( void ) const;
 
+	virtual bool			EnterVehicle		( idEntity* vehicle );
+	virtual bool			ExitVehicle			( bool force = false );
+
 	virtual	void			UpdatePlayerIcons( void );
 	virtual	void			DrawPlayerIcons( void );
 	virtual	void			HidePlayerIcons( void );
@@ -573,8 +578,13 @@ public:
 	//Dynamix
 	bool					UseForcePoints(float amount);
 	bool					UseForcePoints(float amount, int alignment, int type);
+	int						HasAmmo( int amount, int alignment );
+	bool					inVehicle;
+	void 					UpdateModel( void );
 
 private:
+	float					vehicleCameraDist;
+
 	jointHandle_t			hipJoint;
 	jointHandle_t			chestJoint;
 	jointHandle_t			headJoint;

@@ -2791,6 +2791,21 @@ bool idEntity::GetFloorPos( float max_dist, idVec3 &floorpos ) const {
 
 /*
 ================
+idEntity::GetWorldOrigin
+================
+*/
+bool idEntity::GetWorldOrigin( jointHandle_t joint, idVec3& org ) {
+	UpdateModelTransform();
+
+	if ( !GetAnimator()->GetJointTransform( joint, gameLocal.time, org ) ) {
+		return false;
+	}
+	org = renderEntity.origin + ( org * renderEntity.axis );
+	return true;
+}
+
+/*
+================
 idEntity::GetPhysicsToVisualTransform
 ================
 */

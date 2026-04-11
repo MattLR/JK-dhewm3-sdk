@@ -32,6 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "AFEntity.h"
 #include "IK.h"
 #include "PlayerView.h"
+#include "vehicle/VehicleController.h"
 
 /*
 ===============================================================================
@@ -56,6 +57,10 @@ extern const idEventDef AI_PlayCycle;
 extern const idEventDef AI_AnimDone;
 extern const idEventDef AI_SetBlendFrames;
 extern const idEventDef AI_GetBlendFrames;
+
+//Dynamix
+extern const idEventDef AI_EnterVehicle;
+extern const idEventDef AI_ExitVehicle;
 
 class idDeclParticle;
 
@@ -212,6 +217,9 @@ public:
 	bool					AnimDone( int channel, int blendFrames ) const;
 	virtual void			SpawnGibs( const idVec3 &dir, const char *damageDefName );
 
+	//Dynamix
+	bool					IsInVehicle ( void ) const;
+
 protected:
 	friend class			idAnimState;
 
@@ -269,6 +277,15 @@ protected:
 
 	virtual void			Gib( const idVec3 &dir, const char *damageDefName );
 
+	// RAVEN BEGIN
+// bdube: vehicles
+	virtual bool			EnterVehicle ( idEntity* vehicle );
+	virtual bool			ExitVehicle	 ( bool force = false );
+// RAVEN END
+
+
+	jkVehicleController		vehicleController;
+
 							// removes attachments with "remove" set for when character dies
 	void					RemoveAttachments( void );
 
@@ -321,6 +338,13 @@ private:
 	void					Event_SetState( const char *name );
 	void					Event_GetState( void );
 	void					Event_GetHead( void );
+	//Dynamix
+	void					Event_EnterVehicle	( idEntity* vehicle );
+	void					Event_ExitVehicle	( bool force );
 };
+
+ID_INLINE bool idActor::IsInVehicle( void ) const {
+	return vehicleController.IsDriving();
+}
 
 #endif /* !__GAME_ACTOR_H__ */

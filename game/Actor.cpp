@@ -33,6 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Light.h"
 #include "Projectile.h"
 #include "WorldSpawn.h"
+#include "vehicle/Vehicle.h"
 
 #include "Actor.h"
 
@@ -365,6 +366,10 @@ const idEventDef AI_SetNextState( "setNextState", "s" );
 const idEventDef AI_SetState( "setState", "s" );
 const idEventDef AI_GetState( "getState", NULL, 's' );
 const idEventDef AI_GetHead( "getHead", NULL, 'e' );
+//Dynamix
+const idEventDef AI_EnterVehicle ( "enterVehicle", "e" );
+const idEventDef AI_ExitVehicle ( "exitVehicle", "d" );
+//const idEventDef AI_PostExitVehicle ( "<exitVehicle>", "d" );
 
 CLASS_DECLARATION( idAFEntity_Gibbable, idActor )
 	EVENT( AI_EnableEyeFocus,			idActor::Event_EnableEyeFocus )
@@ -408,6 +413,9 @@ CLASS_DECLARATION( idAFEntity_Gibbable, idActor )
 	EVENT( AI_SetState,					idActor::Event_SetState )
 	EVENT( AI_GetState,					idActor::Event_GetState )
 	EVENT( AI_GetHead,					idActor::Event_GetHead )
+	//Dynamix
+	EVENT( AI_EnterVehicle,				idActor::Event_EnterVehicle )
+	EVENT( AI_ExitVehicle,				idActor::Event_ExitVehicle )
 END_CLASS
 
 /*
@@ -1410,6 +1418,71 @@ idActor::GetEyePosition
 */
 idVec3 idActor::GetEyePosition( void ) const {
 	return GetPhysics()->GetOrigin() + ( GetPhysics()->GetGravityNormal() * -eyeOffset.z );
+}
+
+/*
+=====================
+idActor::Event_EnterVehicle
+=====================
+*/
+void idActor::Event_EnterVehicle ( idEntity* vehicle ) {
+	//FIXME1 
+	//if ( IsInVehicle ( ) ) {
+	//	return;
+	//}
+	EnterVehicle ( vehicle );
+}
+
+/*
+=====================
+idActor::Event_ExitVehicle
+=====================
+*/
+void idActor::Event_ExitVehicle ( bool force ) {
+	if ( !IsInVehicle ( ) ) {
+		return;
+	}
+	ExitVehicle ( force );
+}
+
+/*
+==============
+idActor::ExitVehicle
+==============
+*/
+bool idActor::ExitVehicle ( bool force ) {
+	idMat3	axis;			
+	idVec3	origin;
+	//FIXME1
+	if ( !IsInVehicle ( ) ) {
+		return false;
+	}
+
+	if ( vehicleController.GetVehicle()->IsLocked() ) {
+		if ( force ) {
+			vehicleController.GetVehicle()->Unlock();
+		} else {
+			return false;
+		}
+	}
+
+	//if( !vehicleController.FindClearExitPoint(origin, axis) ) {
+		//if ( force ) {
+			origin = GetPhysics()->GetOrigin() + idVec3( spawnArgs.GetVector( "forced_exit_offset", "-100 0 0" ) );
+			axis = GetPhysics()->GetAxis();
+		//} else {
+			//return false;
+		//}
+	//}
+
+	vehicleController.Eject ( force );
+	GetPhysics()->SetOrigin( origin );
+	viewAxis = axis[0].ToMat3();
+	GetPhysics()->SetAxis( mat3_identity );
+	//Don't think I want this Dynamix 
+	//GetPhysics()->SetLinearVelocity( vec3_origin );
+	
+	return true;
 }
 
 /*
@@ -2463,6 +2536,29 @@ const char *idActor::GetDamageGroup( int location ) {
 
 	return damageGroups[ location ];
 }
+
+/*
+=====================
+idActor::EnterVehicle
+=====================
+*/
+bool idActor::EnterVehicle ( idEntity* ent ) {
+// RAVEN BEGIN
+// jnewquist: Use accessor for static class type 
+	//if ( IsInVehicle ( ) || !ent->IsType ( rvVehicle::GetClassType() ) ) {
+// RAVEN END
+	//	return false ;
+	//}	
+
+	// Get in the vehicle	
+	if ( !vehicleController.Drive ( static_cast<jkVehicle*>(ent), this ) ) {
+		return false;
+	}
+	
+	return true;
+}
+
+// RAVEN END
 
 
 /***********************************************************************

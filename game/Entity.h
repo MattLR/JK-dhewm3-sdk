@@ -207,7 +207,7 @@ public:
 	virtual void			Show( void );
 	bool					IsHidden( void ) const;
 	void					UpdateVisuals( void );
-	void					UpdateModel( void );
+	virtual void			UpdateModel( void );
 	void					UpdateModelTransform( void );
 	virtual void			ProjectOverlay( const idVec3 &origin, const idVec3 &dir, float size, const char *material );
 	int						GetNumPVSAreas( void );
@@ -275,6 +275,8 @@ public:
 	void					SetAngles( const idAngles &ang );
 							// get the floor position underneath the physics object
 	bool					GetFloorPos( float max_dist, idVec3 &floorpos ) const;
+							//Dynamix - for vehicle thing from QW
+	bool					GetWorldOrigin( jointHandle_t joint, idVec3& org );
 							// retrieves the transformation going from the physics origin/axis to the visual origin/axis
 	virtual bool			GetPhysicsToVisualTransform( idVec3 &origin, idMat3 &axis );
 							// retrieves the transformation going from the physics origin/axis to the sound origin/axis

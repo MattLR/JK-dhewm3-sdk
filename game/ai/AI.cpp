@@ -3284,21 +3284,14 @@ void idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const id
 			//phys->SetLinearVelocity( dir * impulse * 0.5f );
 			//ai->Pain( this, this, dir, 0, vec3_origin, 0 ); // trigger stumble/pain reaction
 			//continue;
-			int printOnce = 0;
-			int startTime = gameLocal.GetTime();
-			gameLocal.Printf ("%d\n", startTime);
-			int endTime = gameLocal.GetTime() + 500;
-			int currentTime = gameLocal.GetTime();
-			while (endTime >= currentTime ) {
-				if ( printOnce == 1) {
-					gameLocal.Printf ("asdasdasd\n");
-				}
-				currentTime++;
-				printOnce++;
-				}
+
+	
 				
 				gameLocal.Printf ("Endtime %d\n", gameLocal.GetTime());
 	} else if ( idStr::Icmp(forceDefName, "pull") == 0 ) {
+		} else if ( idStr::Icmp(forceDefName, "grip") == 0 ) {
+			state = GetScriptFunction( "state_Gripped" );
+			SetState(state);
 	} else if ( idStr::Icmp(forceDefName, "mindtrick") == 0 ) {
 		team = 0;
 		rank = -1;

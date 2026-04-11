@@ -42,6 +42,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Misc.h"
 #include "Trigger.h"
 #include "Moveable.h"
+#include "Vehicle.h"
 
 const int ASYNC_PLAYER_INV_AMMO_BITS = idMath::BitsForInteger( 999 );	// 9 bits to cover the range [0, 999]
 const int ASYNC_PLAYER_INV_CLIP_BITS = -7;								// -7 bits to cover the range [-1, 60]
@@ -1485,6 +1486,9 @@ void idPlayer::Init( void ) {
 	legsYaw = 0.0f;
 	legsForward	= true;
 	oldViewYaw = 0.0f;
+	//Dynamix
+	inVehicle = false;
+	vehicleCameraDist = 0.0f;
 
 	// set the pm_ cvars
 	if ( !gameLocal.isMultiplayer || gameLocal.isServer ) {
@@ -1663,7 +1667,8 @@ void idPlayer::Spawn( void ) {
 		// load HUD
 		if ( gameLocal.isMultiplayer ) {
 			hud = uiManager->FindGui( "guis/mphud.gui", true, false, true );
-			zoomGui  = uiManager->FindGui( "guis/railgun_scope.gui", true, false, true );
+			//zoomGui  = uiManager->FindGui( "guis/railgun_scope.gui", true, false, true );
+			zoomGui = weapon.GetEntity()->GetZoomGui();
 			//zoomGui  = uiManager->FindGui ( (weapon.GetEntity()->spawnArgs.GetString(( "gui_zoom", "" ))), true );
 			//zoomGui  = uiManager->FindGui ( spawnArgs.GetString ( "gui_zoom", "" ), true );
 		} else if ( spawnArgs.GetString( "hud", "", temp ) ) {
@@ -3190,9 +3195,10 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 	weapon.GetEntity()->UpdateGUI();
 
 	_hud->Redraw( gameLocal.realClientTime );
-	if (zoomed) {
-	zoomGui->Activate(true, gameLocal.time);
-	zoomGui->Redraw(gameLocal.time);
+	if (zoomed && weapon.GetEntity()->GetZoomGui()) {
+	weapon.GetEntity()->GetZoomGui()->Redraw( gameLocal.time );
+	//zoomGui->Activate(true, gameLocal.time);
+	//zoomGui->Redraw(gameLocal.time);
 	}
 
 	// weapon targeting crosshair
@@ -5164,9 +5170,14 @@ idPlayer::Collide
 */
 bool idPlayer::Collide( const trace_t &collision, const idVec3 &velocity ) {
 	idEntity *other;
+	float v;
 
 	if ( gameLocal.isClient ) {
 		return false;
+	}
+	v = -( velocity * collision.c.normal );
+	if ( v > 2000  ) { //&& gameLocal.time > nextSoundTime
+	Damage( NULL, NULL, idVec3( 0, 0, -1 ), "damage_softfall", 1.0f, 0 );
 	}
 
 	other = gameLocal.entities[ collision.c.entityNum ];
@@ -5788,6 +5799,7 @@ void idPlayer::UpdateViewAngles( void ) {
 
 	// circularly clamp the angles with deltas
 	for ( i = 0; i < 3; i++ ) {
+		//Don't think cmdAngles is ever used for anything
 		cmdAngles[i] = SHORT2ANGLE( usercmd.angles[i] );
 		if ( influenceActive == INFLUENCE_LEVEL3 ) {
 			viewAngles[i] += idMath::ClampFloat( -1.0f, 1.0f, idMath::AngleDelta( idMath::AngleNormalize180( SHORT2ANGLE( usercmd.angles[i]) + deltaViewAngles[i] ) , viewAngles[i] ) );
@@ -6454,10 +6466,13 @@ void idPlayer::UseVehicle( void ) {
 	trace_t	trace;
 	idVec3 start, end;
 	idEntity *ent;
-
-	if ( GetBindMaster() && GetBindMaster()->IsType( idAFEntity_Vehicle::Type ) ) {
+//&& GetBindMaster()->IsType( jkRBVehicleTest::Type
+	if ( GetBindMaster() ) {
 		Show();
-		static_cast<idAFEntity_Vehicle*>(GetBindMaster())->Use( this );
+		//static_cast<idAFEntity_Vehicle*>(GetBindMaster())->Use( this );
+		//static_cast<jkRBVehicleTest*>(ent)->Use( this );
+		static_cast<jkRBVehicleTest*>(GetBindMaster())->Use( this );
+		inVehicle = false;
 	} else {
 		// Trace to see if we hit something interesting, added the trigger and character stuff
 		// This should be a clip like they do in updatefocus in hindsight, if I'm doing that properly I should move those up to the player
@@ -6467,18 +6482,22 @@ void idPlayer::UseVehicle( void ) {
 		gameLocal.clip.TracePoint( trace, start, end, MASK_ALL, this );
 		if ( trace.fraction < 1.0f ) {
 			ent = gameLocal.entities[ trace.c.entityNum ];
-			if ( ent && ent->IsType( idAFEntity_Vehicle::Type ) ) {
-				Hide();
-				static_cast<idAFEntity_Vehicle*>(ent)->Use( this );
+			if ( ent && ent->IsType( jkRBVehicleTest::Type ) ) {
+				//Hide();
+				static_cast<jkRBVehicleTest*>(ent)->Use( this );
+				inVehicle = true;
+			} else if (1) {
+				ProcessEvent ( &AI_EnterVehicle, ent );
 			} else if ( ent && ent->IsType( idTrigger::Type) && (ent->spawnArgs.GetInt("spawnflags") & 4) ) {
 				ent->Signal( SIG_TRIGGER );
 				ent->ProcessEvent( &EV_Activate, gameLocal.GetLocalPlayer() );
 				ent->TriggerGuis();
 			} else if (ent && ent->IsType( idAI::Type) && focusCharacter) {
+				idAI *ai = dynamic_cast<idAI*>( ent );
 				// FIXME This doesn't seem like the right way to do any of this, need to look into it dynamix
 
 				idStr objectType;
-				objectType = ent->scriptObject.GetTypeName();
+				objectType = ai->scriptObject.GetTypeName();
 
 				if (objectType != "combined") {
 					
@@ -6490,14 +6509,13 @@ void idPlayer::UseVehicle( void ) {
 
 				funcName = "doInteraction";
 				// Calling scriptobject function directly, I'm sure there's another way that makes more sense
-				func = ent->scriptObject.GetFunction( funcName );
+				func = ai->scriptObject.GetFunction( funcName );
 				if ( !func ) {
 					focusCharacter->TalkTo( this );
 					return;
 				}
 
-
-				// create a thread and call the function
+				// Create a thread and call the function
 				// Do I need a thread?
 				thread = new idThread();
 				thread->CallFunction( ent, func, true );
@@ -6505,6 +6523,56 @@ void idPlayer::UseVehicle( void ) {
 			}
 		}
 	}
+}
+
+/*
+==============
+idPlayer::EnterVehicle
+==============
+*/
+bool idPlayer::EnterVehicle( idEntity* vehicle ) {
+	if ( !idActor::EnterVehicle ( vehicle ) ) {
+		return false;
+	}
+	
+// RAVEN BEGIN
+// jshepard: safety first
+	if( weapon.GetEntity())	{
+	  	weapon.GetEntity()->HideWeapon();
+	}
+
+// abahr:
+	//HideCrosshair(); FIXME1
+// RAVEN END
+  	
+  	return true;
+}
+
+/*
+==============
+idPlayer::ExitVehicle
+==============
+*/
+bool idPlayer::ExitVehicle ( bool force ) {
+	if ( !idActor::ExitVehicle ( force ) ) {
+		return false;
+	}
+	
+	SetViewAngles( viewAxis[0].ToAngles() );
+	//Dynamix - Not using script/state flags on the player side yet, just using the playanim in the vehicle code
+	//FIXME1 - clears the anim from vehicle riding but somehow makes weapons misaligned?
+	GetAnimator()->ClearAllAnims( gameLocal.time, 100 );
+
+// RAVEN BEGIN
+// jshepard: had this crash on me more than once :(
+	if(weapon.GetEntity())	{
+		weapon.GetEntity()->ShowWeapon();
+	}
+// abahr: Would like to call something more specific
+	//ShowCrosshair(); FIXME1
+// RAVEN END
+	
+	return true;
 }
 
 /*
@@ -7262,6 +7330,35 @@ void idPlayer::Think( void ) {
 			cvarSystem->SetCVarString( "m_pitch", "0.022" );
 			zoomed = false;
 		}
+	}
+
+		if ( IsInVehicle() ) {
+		vehicleController.SetInput ( usercmd, viewAngles );
+				
+		// calculate the exact bobbed view position, which is used to
+		// position the view weapon, among other things
+		CalculateFirstPersonView();
+
+		// this may use firstPersonView, or a thirdPeoson / camera view
+		CalculateRenderView();
+
+		thinkFlags |= TH_PHYSICS;
+		RunPhysics();
+
+		if ( health > 0 ) {
+			TouchTriggers();
+		}
+
+		UpdateLocation();
+		
+		if ( !fl.hidden ) {
+			UpdateAnimation();
+			Present();
+			LinkCombat();
+		} else {
+			UpdateModel();
+		}
+		return;
 	}
 
 	// if we have an active gui, we will unrotate the view angles as
@@ -8186,6 +8283,112 @@ void idPlayer::CalculateViewWeaponPos( idVec3 &origin, idMat3 &axis ) {
 
 /*
 ===============
+idPlayer::OffsetThirdPersonVehicleView
+===============
+*/
+// RAVEN BEGIN
+// jnewquist: option to avoid clipping against world
+void idPlayer::OffsetThirdPersonVehicleView( bool clip ) {
+// RAVEN END
+	idVec3			view;
+	idVec3			focusAngles;
+	trace_t			trace;
+	idVec3			focusPoint;
+	float			focusDist;
+	idVec3			origin;
+	idAngles		angles, angles2;
+	idEntity*		vehicle;
+
+	//Temp move to player
+	//float vehicleCameraDist = 500.0f;
+
+	//assert ( IsInVehicle ( ) );
+	
+	//vehicle = vehicleController.GetVehicle();
+	//vehicle = static_cast<idEntity *>(vehicleController.GetVehicle());
+	vehicle = this->GetBindMaster();
+
+	origin = vehicle->GetRenderEntity()->origin;
+	angles = vehicle->GetRenderEntity()->axis.ToAngles();
+	
+	angles.yaw += pm_thirdPersonAngle.GetFloat();
+	angles.pitch += 25.0f;
+
+//	angles.pitch += viewAngles.pitch;
+//	angles.yaw += viewAngles.yaw;
+
+	focusPoint = origin + angles.ToForward() * THIRD_PERSON_FOCUS_DISTANCE;
+	view = origin;
+// RAVEN BEGIN
+// abahr: taking into account gravity
+	focusPoint += physicsObj.GetGravityAxis()[2] * 72.0f;
+	view += physicsObj.GetGravityAxis()[2] * 72.0f;
+// RAVEN END
+
+	renderView->viewaxis = angles.ToMat3() * physicsObj.GetGravityAxis();
+
+	float speed = vehicle->GetPhysics()->GetLinearVelocity() * 
+				  vehicle->GetPhysics()->GetAxis()[0];
+
+	speed = idMath::Fabs( speed );
+	//speed *= pm_vehicleCameraSpeedScale.GetFloat();
+	speed *= 0.5;
+	if( speed > 150 ) //speed > pm_vehicleCameraScaleMax.GetFloat() 
+	{
+		speed = 150; //speed = pm_vehicleCameraScaleMax.GetFloat();
+	}
+
+	//vehicleCameraDist += ( MS2SEC( gameLocal.GetMSec() ) * ( ( pm_vehicleCameraMinDist.GetFloat() + speed ) - vehicleCameraDist ) );
+	vehicleCameraDist += ( MS2SEC( gameLocal.GetMSec() ) * ( ( 180 + speed ) - vehicleCameraDist ) );
+
+	view -= vehicleCameraDist * renderView->viewaxis[ 0 ];
+
+// RAVEN BEGIN
+// jnewquist: option to avoid clipping against world
+//Dynamix FIXME get rid of multiple clip worlds stuff
+/*
+ 	if ( clip ) {
+		// trace a ray from the origin to the viewpoint to make sure the view isn't
+		// in a solid block.  Use an 8 by 8 block to prevent the view from near clipping anything
+		const idVec3 clip_mins( -4.0f, -4.0f, -4.0f );
+		const idVec3 clip_maxs( 4.0f, 4.0f, 4.0f );
+		const idBounds clip_bounds( clip_mins, clip_maxs );
+		idClipModel clipBounds( clip_bounds );// We clip when using a tram gun in the tram car
+// ddynerman: multiple clip worlds
+		gameLocal.Translation( this, trace, origin, view, &clipBounds, vehicle->GetPhysics()->GetAxis(), MASK_SOLID, vehicle, vehicle->GetBindMaster() ); 
+		if ( trace.fraction != 1.0 ) 
+		{
+			view = trace.endpos;
+// abahr: taking into account gravity
+			view += physicsObj.GetGravityAxis()[2] * ( 1.0f - trace.fraction ) * 32;
+
+			// try another trace to this position, because a tunnel may have the ceiling
+			// close enough that this is poking out
+// ddynerman: multiple clip worlds
+			gameLocal.Translation( this, trace, origin, view, &clipBounds, vehicle->GetPhysics()->GetAxis(), MASK_SOLID, vehicle, vehicle->GetBindMaster() ); 
+			view = trace.endpos;
+		}
+	}
+		*/
+// RAVEN END
+
+	// select pitch to look at focus point from vieword
+	focusPoint -= view;
+	focusDist = idMath::Sqrt( focusPoint[0] * focusPoint[0] + focusPoint[1] * focusPoint[1] );
+	if ( focusDist < 1 ) 
+	{
+		focusDist = 1;	// should never happen
+	}
+
+	angles.pitch = - RAD2DEG( idMath::ATan( focusPoint.z, focusDist ) );
+
+	renderView->vieworg = view;
+	renderView->viewaxis = angles.ToMat3() * physicsObj.GetGravityAxis();
+	renderView->viewID = 0;
+}
+
+/*
+===============
 idPlayer::OffsetThirdPersonView
 ===============
 */
@@ -8388,6 +8591,11 @@ void idPlayer::CalculateRenderView( void ) {
 				// allow the right player view weapons
 				renderView->viewID = entityNumber + 1;
 			}
+		} else if ( pm_thirdPerson.GetBool() && IsInVehicle() ) { //pm_thirdPerson.GetBool() && IsInVehicle ( )
+// RAVEN BEGIN
+// jnewquist: option to avoid clipping against world
+				OffsetThirdPersonVehicleView( pm_thirdPersonClip.GetBool() );
+// RAVEN END
 		} else if ( pm_thirdPerson.GetBool() ) {
 			OffsetThirdPersonView( pm_thirdPersonAngle.GetFloat(), pm_thirdPersonRange.GetFloat(), pm_thirdPersonHeight.GetFloat(), pm_thirdPersonClip.GetBool() );
 		} else if ( pm_thirdPersonDeath.GetBool() ) {
@@ -8865,6 +9073,27 @@ void idPlayer::ClientPredictionThink( void ) {
 	}
 
 	scoreBoardOpen = ( ( usercmd.buttons & BUTTON_SCORES ) != 0 || forceScoreBoard );
+
+
+		if ( inVehicle ) {	
+		//vehicleController.SetInput( usercmd, viewAngles );
+				
+		// calculate the exact bobbed view position, which is used to
+		// position the view weapon, among other things
+		CalculateFirstPersonView();
+
+		// this may use firstPersonView, or a thirdPeoson / camera view
+		CalculateRenderView();
+
+		UpdateLocation();
+
+		if ( !fl.hidden ) {
+			UpdateAnimation();
+			Present();
+		}			
+		
+		return;
+	}
 
 	AdjustSpeed();
 
@@ -9855,8 +10084,19 @@ idPlayer::PrevForce
 ===============
 */
 void idPlayer::PrevForce( void ) {
-	//const char *weap;
-	int w;
+	int f;
+
+	f = idealForcePower;
+	f--;
+
+	if ( f < 0 ) {
+		f = 12;
+	}
+	
+	idealForcePower = f;
+	
+	const char *weap;
+	
 
 	if ( !weaponEnabled || spectating || hiddenWeapon || gameLocal.inCinematic || gameLocal.world->spawnArgs.GetBool( "no_Weapons" ) || health < 0 ) {
 		return;
@@ -9866,34 +10106,48 @@ void idPlayer::PrevForce( void ) {
 		return;
 	}
 
-	// check if we have any weapons
+	// check if we know any force powers
+	//FIXME DYNAMIX
+	/*
 	if ( !inventory.forcePowers ) {
+		gameLocal.Printf("No force powers \n");
 		return;
 	}
-
+		*/
+	/*
 	w = idealForcePower;
 	while( 1 ) {
-		w--;
-		if ( w < 0 ) {
-			w = MAX_FORCE_POWERS - 1;
+		gameLocal.Printf("wowlwowlw3");
+		w++;
+		if ( w >= MAX_FORCE_POWERS ) {
+			w = 0;
 		}
-		//weap = spawnArgs.GetString( va( "def_weapon%d", w ) );
-
-		/*
+		weap = spawnArgs.GetString( va( "def_power%d", w ) );
+		//if ( !spawnArgs.GetBool( va( "weapon%d_cycle", w ) ) ) {
+		//	continue;
+		//}
 		if ( !weap[ 0 ] ) {
 			continue;
 		}
-		*/
 		if ( ( inventory.forcePowers & ( 1 << w ) ) == 0 ) {
 			continue;
 		}
+			break;
 	}
-
+	gameLocal.Printf("wow4");
+	
 	if ( ( w != currentForcePower ) && ( w != idealForcePower ) ) {
 		idealForcePower = w;
 		forcePowerSwitchTime = gameLocal.time + FORCE_SWITCH_DELAY;
-		//UpdateHudForce();
-	}
+		currentForcePower = idealForcePower;
+		//UpdateHudForcePower();
+		gameLocal.Printf("wow5");
+		gameLocal.Printf("'%d'");
+	} */
+		//currentForcePower = idealForcePower;
+		//idealForcePower = f;
+		gameLocal.DPrintf("idealForce %d, currentForce %d\n", idealForcePower, currentForcePower);
+		UpdateHudForcePower();//Call here for instant UI feedback, call in setForcePower to only show the change after the power is useable
 }
 
 /*
@@ -9974,4 +10228,33 @@ idPlayer::Event_ShowWeaponIcons
 */
 void idPlayer::Event_ShowWeaponIcons() {
 	hud->SetStateInt("showWeaponIcons", 1);
+}
+
+//Dynamix FIXME1 for vehicle transformation, temp i think
+/*
+================
+idPlayer::UpdateModel
+================
+*/
+void idPlayer::UpdateModel( void ) {
+	UpdateModelTransform();
+
+	// check if the entity has an MD5 model
+	idAnimator *animator = GetAnimator();
+	if ( animator && animator->ModelHandle() ) {
+		// set the callback to update the joints
+		renderEntity.callback = idEntity::ModelCallback;
+	}
+
+	//Dynamix - for model alignment when mounted or in a vehicle - QW overloads UpdateModelTransform, do that later FIXME1
+	if (GetBindMaster()) {
+		idEntity*	vehicle = this->GetBindMaster();
+		renderEntity.axis = vehicle->GetRenderEntity()->axis;
+	}
+
+	// set to invalid number to force an update the next time the PVS areas are retrieved
+	ClearPVSAreas();
+
+	// ensure that we call Present this frame
+	BecomeActive( TH_UPDATEVISUALS );
 }
