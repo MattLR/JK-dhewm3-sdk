@@ -8321,8 +8321,8 @@ void idPlayer::OffsetThirdPersonVehicleView( bool clip ) {
 	view = origin;
 // RAVEN BEGIN
 // abahr: taking into account gravity
-	focusPoint += physicsObj.GetGravityAxis()[2] * 72.0f;
-	view += physicsObj.GetGravityAxis()[2] * 72.0f;
+	focusPoint += physicsObj.GetGravityAxis()[2] * 180.0f;
+	view += physicsObj.GetGravityAxis()[2] * 300.0f;
 // RAVEN END
 
 	renderView->viewaxis = angles.ToMat3() * physicsObj.GetGravityAxis();
@@ -8339,7 +8339,7 @@ void idPlayer::OffsetThirdPersonVehicleView( bool clip ) {
 	}
 
 	//vehicleCameraDist += ( MS2SEC( gameLocal.GetMSec() ) * ( ( pm_vehicleCameraMinDist.GetFloat() + speed ) - vehicleCameraDist ) );
-	vehicleCameraDist += ( MS2SEC( gameLocal.GetMSec() ) * ( ( 180 + speed ) - vehicleCameraDist ) );
+	vehicleCameraDist += ( MS2SEC( gameLocal.GetMSec() ) * ( ( 350 + speed ) - vehicleCameraDist ) );
 
 	view -= vehicleCameraDist * renderView->viewaxis[ 0 ];
 
@@ -8490,6 +8490,12 @@ void idPlayer::GetViewPos( idVec3 &origin, idMat3 &axis ) const {
 		angles.pitch = -15;
 		axis = angles.ToMat3();
 		origin = GetEyePosition();
+	} else if ( IsInVehicle ( ) ) {	
+		vehicleController.GetEyePosition ( origin, axis );
+
+		//Shakeoffset stuff isn't in D3
+  		//origin += shakeOffset;
+  		//axis = (shakeAngleOffset + playerView.AngleOffset()).ToMat3() * axis;
 	} else {
 		origin = GetEyePosition() + viewBob;
 		angles = viewAngles + viewBobAngles + playerView.AngleOffset();

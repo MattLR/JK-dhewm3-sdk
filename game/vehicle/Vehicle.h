@@ -324,9 +324,12 @@ private:
 
 	virtual void			OnDeath					( void ) { }
 
-	//stateResult_t			State_Wait_Driver		( int blendFrames );
+	stateResult_t			State_Wait_Driver		( int blendFrames );
+	stateResult_t			State_Wait_Frame		( const stateParms_t& parms);
+	stateResult_t			State_Wait_LegsAnim		( const stateParms_t& parms );
+	stateResult_t			State_Wait_TorsoAnim	( const stateParms_t& parms );
 
-	//CLASS_STATES_PROTOTYPE( jkVehicle );
+	CLASS_STATES_PROTOTYPE( jkVehicle );
 };
 /*
 ===============

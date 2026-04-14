@@ -33,6 +33,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "gamesys/Event.h"
 
+#include "State.h"
+
 class idClass;
 class idTypeInfo;
 
@@ -115,6 +117,7 @@ incorrect.  Use this on concrete classes only.
 #define CLASS_DECLARATION( nameofsuperclass, nameofclass )											\
 	idTypeInfo nameofclass::Type( #nameofclass, #nameofsuperclass,									\
 		( idEventFunc<idClass> * )nameofclass::eventCallbacks,	nameofclass::CreateInstance, ( void ( idClass::* )( void ) )&nameofclass::Spawn,	\
+		( rvStateFunc<idClass> * )nameofclass::stateCallbacks,										\
 		( void ( idClass::* )( idSaveGame * ) const )&nameofclass::Save, ( void ( idClass::* )( idRestoreGame * ) )&nameofclass::Restore );	\
 	idClass *nameofclass::CreateInstance( void ) {													\
 		try {																						\
@@ -161,6 +164,7 @@ on abstract classes only.
 #define ABSTRACT_DECLARATION( nameofsuperclass, nameofclass )										\
 	idTypeInfo nameofclass::Type( #nameofclass, #nameofsuperclass,									\
 		( idEventFunc<idClass> * )nameofclass::eventCallbacks, nameofclass::CreateInstance, ( void ( idClass::* )( void ) )&nameofclass::Spawn,	\
+		( rvStateFunc<idClass> * )nameofclass::stateCallbacks,										\
 		( void ( idClass::* )( idSaveGame * ) const )&nameofclass::Save, ( void ( idClass::* )( idRestoreGame * ) )&nameofclass::Restore );	\
 	idClass *nameofclass::CreateInstance( void ) {													\
 		gameLocal.Error( "Cannot instanciate abstract class %s.", #nameofclass );					\
@@ -177,6 +181,7 @@ class idSaveGame;
 class idRestoreGame;
 
 class idClass {
+	CLASS_STATES_PROTOTYPE(idClass);
 public:
 	ABSTRACT_PROTOTYPE( idClass );
 
@@ -199,6 +204,10 @@ public:
 	const char *				GetClassname( void ) const;
 	const char *				GetSuperclass( void ) const;
 	void						FindUninitializedMemory( void );
+
+	stateResult_t				ProcessState			( const rvStateFunc<idClass>* state, const stateParms_t& parms );
+	stateResult_t				ProcessState			( const char* name, const stateParms_t& parms );
+	const rvStateFunc<idClass>*	FindState				( const char* name ) const;
 
 	void						Save( idSaveGame *savefile ) const {};
 	void						Restore( idRestoreGame *savefile ) {};
@@ -284,6 +293,7 @@ public:
 
 	idEventFunc<idClass> *		eventCallbacks;
 	eventCallback_t *			eventMap;
+	rvStateFunc<idClass>*		stateCallbacks;
 	idTypeInfo *				super;
 	idTypeInfo *				next;
 	bool						freeEventMap;
@@ -294,6 +304,7 @@ public:
 
 								idTypeInfo( const char *classname, const char *superclass,
 												idEventFunc<idClass> *eventCallbacks, idClass *( *CreateInstance )( void ), void ( idClass::*Spawn )( void ),
+												rvStateFunc<idClass>* stateCallbacks,
 												void ( idClass::*Save )( idSaveGame *savefile ) const, void	( idClass::*Restore )( idRestoreGame *savefile ) );
 								~idTypeInfo();
 

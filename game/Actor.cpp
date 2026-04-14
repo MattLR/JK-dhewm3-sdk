@@ -135,6 +135,9 @@ void idAnimState::Init( idActor *owner, idAnimator *_animator, int animchannel )
 	}
 	thread->EndThread();
 	thread->ManualControl();
+
+	stateThread.SetName ( va("%s_anim_%d", owner->GetName(), animchannel ) );
+	stateThread.SetOwner ( owner );	
 }
 
 /*
@@ -145,6 +148,18 @@ idAnimState::Shutdown
 void idAnimState::Shutdown( void ) {
 	delete thread;
 	thread = NULL;
+}
+
+/*
+=====================
+idAnimState::PostCState
+=====================
+*/
+void idAnimState::PostCState ( const char* statename, int blendFrames, int delay, int flags ) {
+	if ( SRESULT_OK != stateThread.PostState ( statename, blendFrames, delay, flags ) ) {
+		gameLocal.Error ( "Could not find state function '%s' for entity '%s'", statename, self->GetName() );
+	}
+	disabled = false;
 }
 
 /*
@@ -283,9 +298,9 @@ void idAnimState::Enable( int blendFrames ) {
 		disabled = false;
 		animBlendFrames = blendFrames;
 		lastAnimBlendFrames = blendFrames;
-		if ( state.Length() ) {
-			SetState( state.c_str(), blendFrames );
-		}
+		//if ( state.Length() ) {
+		//	SetState( state.c_str(), blendFrames );
+		//}
 	}
 }
 
@@ -316,7 +331,7 @@ bool idAnimState::UpdateState( void ) {
 	}
 
 	thread->Execute();
-
+	stateThread.Execute();
 	return true;
 }
 
@@ -634,6 +649,10 @@ void idActor::Spawn( void ) {
 	}
 
 	finalBoss = spawnArgs.GetBool( "finalBoss" );
+
+	//Dynamix code based states
+	stateThread.SetName ( GetName() );
+	stateThread.SetOwner ( this );
 
 	FinishSetup();
 }
@@ -1958,6 +1977,59 @@ void idActor::GetAASLocation( idAAS *aas, idVec3 &pos, int &areaNum ) const {
 	animation state
 
 ***********************************************************************/
+
+/*
+=====================
+idActor::PostCAnimState
+=====================
+*/
+void idActor::PostCAnimState ( int channel, const char* statename, int blendFrames, int delay, int flags ) {
+	GetCAnimState ( channel ).PostCState ( statename, blendFrames, delay, flags );
+}
+
+/*
+=====================
+idActor::SetCAnimState
+=====================
+*/
+void idActor::SetCAnimState( int channel, const char *statename, int blendFrames, int flags ) {
+	switch ( channel ) {
+		case ANIMCHANNEL_HEAD :
+			headAnim.GetStateThread().Clear ( );
+			break;
+			
+		case ANIMCHANNEL_TORSO :
+			torsoAnim.GetStateThread().Clear ( );
+			legsAnim.Enable( blendFrames );
+			break;
+
+		case ANIMCHANNEL_LEGS :
+			legsAnim.GetStateThread().Clear ( );
+			torsoAnim.Enable( blendFrames );
+			break;
+	}		
+
+	//OnStateChange ( channel );
+	
+	PostCAnimState ( channel, statename, blendFrames, flags );
+}
+
+idAnimState& idActor::GetCAnimState ( int channel ) {
+	switch ( channel ) {
+		case ANIMCHANNEL_LEGS:		return legsAnim;
+		case ANIMCHANNEL_TORSO:		return torsoAnim;
+		case ANIMCHANNEL_HEAD:		return headAnim;
+		default:
+			gameLocal.Error( "idActor::GetAnimState: Unknown anim channel" );
+			return torsoAnim;
+	}
+}
+
+bool idActor::AnimDone ( int channel, int blendFrames ) {
+	return GetCAnimState( channel ).AnimDone ( blendFrames );
+}
+
+
 
 /*
 =====================
@@ -3447,4 +3519,96 @@ idActor::Event_GetHead
 */
 void idActor::Event_GetHead( void ) {
 	idThread::ReturnEntity( head.GetEntity() );
+}
+
+/*
+================
+idActor::PlayAnim
+
+Quake 4 function that has blendframes added to the event_playanim, for vehicles
+================
+*/
+int idActor::PlayAnim ( int channel, const char *animname, int blendFrames ) {
+	animFlags_t	flags;
+	idEntity *headEnt;
+	int	anim;
+
+	if ( blendFrames != -1 ) {
+		Event_SetBlendFrames ( channel, blendFrames );
+	}
+	
+	anim = GetAnim( channel, animname );
+
+	//FIXME1 Dynamix - g_debuganim?
+	//if( ai_animShow.GetBool() ){
+	//	gameLocal.DPrintf( "Playing animation '%s' on '%s' (%s)\n", animname, name.c_str(), spawnArgs.GetString( "head", "" ) );
+	//}
+
+	if ( !anim ) {
+		if ( ( channel == ANIMCHANNEL_HEAD ) && head.GetEntity() ) {
+			gameLocal.Warning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), spawnArgs.GetString( "def_head", "" ) );
+		} else {
+			gameLocal.Warning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), GetEntityDefName() );
+		}
+		return 0;
+	}
+
+	switch( channel ) {
+	case ANIMCHANNEL_HEAD :
+		headEnt = head.GetEntity();
+		if ( headEnt ) {
+			headAnim.idleAnim = false;
+			headAnim.PlayAnim( anim );
+			flags = headAnim.GetAnimFlags();
+			if ( !flags.prevent_idle_override ) {
+				if ( torsoAnim.IsIdle() ) {
+					torsoAnim.animBlendFrames = headAnim.lastAnimBlendFrames;
+					SyncAnimChannels( ANIMCHANNEL_TORSO, ANIMCHANNEL_HEAD, headAnim.lastAnimBlendFrames );
+					if ( legsAnim.IsIdle() ) {
+						legsAnim.animBlendFrames = headAnim.lastAnimBlendFrames;
+						SyncAnimChannels( ANIMCHANNEL_LEGS, ANIMCHANNEL_HEAD, headAnim.lastAnimBlendFrames );
+					}
+				}
+			}
+		}
+		break;
+
+	case ANIMCHANNEL_TORSO :
+		torsoAnim.idleAnim = false;
+		torsoAnim.PlayAnim( anim );
+		flags = torsoAnim.GetAnimFlags();
+		if ( !flags.prevent_idle_override ) {
+			if ( headAnim.IsIdle() ) {
+				headAnim.animBlendFrames = torsoAnim.lastAnimBlendFrames;
+				SyncAnimChannels( ANIMCHANNEL_HEAD, ANIMCHANNEL_TORSO, torsoAnim.lastAnimBlendFrames );
+			}
+			if ( legsAnim.IsIdle() ) {
+				legsAnim.animBlendFrames = torsoAnim.lastAnimBlendFrames;
+				SyncAnimChannels( ANIMCHANNEL_LEGS, ANIMCHANNEL_TORSO, torsoAnim.lastAnimBlendFrames );
+			}
+		}
+		break;
+
+	case ANIMCHANNEL_LEGS :
+		legsAnim.idleAnim = false;
+		legsAnim.PlayAnim( anim );
+		flags = legsAnim.GetAnimFlags();
+		if ( !flags.prevent_idle_override ) {
+			if ( torsoAnim.IsIdle() ) {
+				torsoAnim.animBlendFrames = legsAnim.lastAnimBlendFrames;
+				SyncAnimChannels( ANIMCHANNEL_TORSO, ANIMCHANNEL_LEGS, legsAnim.lastAnimBlendFrames );
+				if ( headAnim.IsIdle() ) {
+					headAnim.animBlendFrames = legsAnim.lastAnimBlendFrames;
+					SyncAnimChannels( ANIMCHANNEL_HEAD, ANIMCHANNEL_LEGS, legsAnim.lastAnimBlendFrames );
+				}
+			}
+		}
+		break;
+
+	default :
+		gameLocal.Error( "Unknown anim group" );
+		break;
+	}
+	
+	return animator.CurrentAnim( channel )->Length();
 }

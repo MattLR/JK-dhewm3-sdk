@@ -708,7 +708,8 @@ void idAnim::CallFrameCommands( idEntity *ent, int from, int to ) const {
 					break;
 				}
 				case FC_SCRIPTFUNCTIONOBJECT: {
-					gameLocal.CallObjectFrameCommand( ent, command.string->c_str() );
+					ent->ProcessEvent ( &EV_ObjectCall, command.string->c_str() );
+					//gameLocal.CallObjectFrameCommand( ent, command.string->c_str() );
 					break;
 				}
 				case FC_EVENTFUNCTION: {

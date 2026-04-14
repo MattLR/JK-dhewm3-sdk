@@ -409,7 +409,7 @@ void jkVehicle::LinkCombat ( void ) {
 		// RAVEN BEGIN
 		// ddynerman: multiple clip worlds
 		//combatModel->Link( this, 0, renderEntity.origin, renderEntity.axis, modelDefHandle );	
-        combatModel->Link(gameLocal.clip, this, 0, renderEntity.origin, renderEntity.axis );
+        combatModel->Link(gameLocal.clip, this, 0, renderEntity.origin, renderEntity.axis, modelDefHandle );
 		// RAVEN END
 		
 		if ( shieldModel ) {
@@ -575,8 +575,6 @@ void jkVehicle::Think ( void ) {
 				// Transfer godmode from driving players
 				if ( positions[i].mDriver && positions[i].mDriver->IsType ( idPlayer::Type ) ) {
 					//if ( static_cast<idPlayer*>(positions[i].mDriver.GetEntity())->godmode ) {
-					//Temp for model alignment, think it should be renderentity or something FIXME1 Dynamix
-					//positions[i].GetDriver()->GetPhysics()->SetAxis(GetPhysics()->GetAxis());
 					//	vfl.godmode = true;
 					//}
 				}
@@ -1729,17 +1727,20 @@ void jkVehicle::Event_GetViewAngles ( ) {
 
 ===============================================================================
 */
-/*
+
 CLASS_STATES_DECLARATION ( jkVehicle )
 	STATE ( "Wait_Driver",					jkVehicle::State_Wait_Driver )
+	STATE ( "Wait_Frame",					jkVehicle::State_Wait_Frame )
+	STATE ( "Wait_LegsAnim",				jkVehicle::State_Wait_LegsAnim )
+	STATE ( "Wait_TorsoAnim",				jkVehicle::State_Wait_TorsoAnim )
 END_CLASS_STATES
-*/
+
 /*
 ================
 jkVehicle::State_Wait_Driver
 ================
 */
-/*
+
 stateResult_t jkVehicle::State_Wait_Driver ( int blendFrames ) {
 	if ( !vfl.driver || vfl.stalled ) {
 		return SRESULT_WAIT;
@@ -1747,4 +1748,50 @@ stateResult_t jkVehicle::State_Wait_Driver ( int blendFrames ) {
 	
 	return SRESULT_DONE;
 }
+
+/*
+===============================================================================
+
+	Wait States 
+
+===============================================================================
 */
+
+/*
+================
+jkVehicle::State_Wait_Frame
+
+Stop a state thread for a single frame
+================
+*/
+stateResult_t jkVehicle::State_Wait_Frame ( const stateParms_t& parms ) {
+	return SRESULT_DONE_WAIT;
+}
+
+/*
+================
+jkVehicle::State_Wait_LegsAnim
+
+Stop a state thread until the animation running on the legs channel is finished
+================
+*/
+stateResult_t jkVehicle::State_Wait_LegsAnim ( const stateParms_t& parms ) {
+	if ( !AnimDone ( ANIMCHANNEL_LEGS, parms.blendFrames ) ) {
+		return SRESULT_WAIT;
+	}
+	return SRESULT_DONE;
+}
+
+/*
+================
+jkVehicle::State_Wait_TorsoAnim
+
+Stop a state thread until the animation running on the torso channel is finished
+================
+*/
+stateResult_t jkVehicle::State_Wait_TorsoAnim ( const stateParms_t& parms ) {
+	if ( !AnimDone ( ANIMCHANNEL_TORSO, parms.blendFrames ) ) {
+		return SRESULT_WAIT;
+	}
+	return SRESULT_DONE;
+}

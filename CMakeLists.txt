@@ -34,11 +34,14 @@ set(src_game_mod
 	game/force/Sense.cpp
 	game/force/Speed.cpp
 	game/force/Trick.cpp
+	game/gamesys/State.cpp
 	game/vehicle/Vehicle.cpp
+	game/vehicle/VehicleAnimated.cpp
 	game/vehicle/VehicleController.cpp
 	game/vehicle/VehiclePart.cpp
 	game/vehicle/VehiclePosition.cpp
 	game/vehicle/VehicleRigid.cpp
+	game/vehicle/VehicleWalker.cpp
 	game/Vehicle.cpp
 )
 

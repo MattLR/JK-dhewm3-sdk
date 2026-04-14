@@ -68,6 +68,8 @@ extern const idEventDef EV_SetSkin;
 extern const idEventDef EV_StartSoundShader;
 extern const idEventDef EV_StopSound;
 extern const idEventDef EV_CacheSoundShader;
+//Dynamix
+extern const idEventDef EV_ObjectCall;
 
 // Think flags
 enum {
@@ -470,6 +472,9 @@ private:
 	void					Event_HasFunction( const char *name );
 	void					Event_CallFunction( const char *name );
 	void					Event_SetNeverDormant( int enable );
+	//Dynamix - event to sort between state machine or scriptobject for object_call - Raven way is slightly different
+	void					Event_ObjectCall( const char *name );
+
 };
 
 /*

@@ -120,6 +120,8 @@ const idEventDef EV_StartFx( "startFx", "s" );
 const idEventDef EV_HasFunction( "hasFunction", "s", 'd' );
 const idEventDef EV_CallFunction( "callFunction", "s" );
 const idEventDef EV_SetNeverDormant( "setNeverDormant", "d" );
+//Dynamix
+const idEventDef EV_ObjectCall( "objectCall", "s" );
 
 ABSTRACT_DECLARATION( idClass, idEntity )
 	EVENT( EV_GetName,				idEntity::Event_GetName )
@@ -185,6 +187,8 @@ ABSTRACT_DECLARATION( idClass, idEntity )
 	EVENT( EV_HasFunction,			idEntity::Event_HasFunction )
 	EVENT( EV_CallFunction,			idEntity::Event_CallFunction )
 	EVENT( EV_SetNeverDormant,		idEntity::Event_SetNeverDormant )
+	//Dynamix
+	EVENT( EV_ObjectCall,			idEntity::Event_ObjectCall )
 END_CLASS
 
 /*
@@ -4636,6 +4640,22 @@ void idEntity::Event_CallFunction( const char *funcname ) {
 
 	// function args will be invalid after this call
 	thread->CallFunction( this, func, false );
+}
+
+/*
+=====================
+idEntity::Event_ObjectCall
+=====================
+*/
+void idEntity::Event_ObjectCall( const char *funcname ) {
+// RAVEN BEGIN
+// bdube: states
+	stateParms_t parms = {0};
+	if ( ProcessState ( funcname, parms ) != SRESULT_ERROR ) {
+		return;
+	}
+	gameLocal.CallObjectFrameCommand ( this, funcname );
+// RAVEN END
 }
 
 /*

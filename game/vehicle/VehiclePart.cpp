@@ -981,8 +981,12 @@ void jkVehicleWeapon::LaunchProjectiles() {
 	for( int i = 0; i < count; i ++ ) {
 		ang = idMath::Sin( spreadRad * gameLocal.random.RandomFloat() );
 		spin = DEG2RAD( 360.0f ) * gameLocal.random.RandomFloat();
+		idMat3 playerViewAxis = static_cast< idPlayer *>( GetPosition()->GetDriver())->renderView->viewaxis;
 		dir = axis[0] + axis[ 2 ] * ( ang * idMath::Sin( spin ) ) - axis[ 1 ] * ( ang * idMath::Cos( spin ) );
-		dir.Normalize();
+		//dir = playerViewAxis[ 0 ] + playerViewAxis[ 2 ] * ( ang * idMath::Sin( spin ) ) - playerViewAxis[ 1 ] * ( ang * idMath::Cos( spin ) );
+		//Dynamix FIXME 1, temp while I work out why the angle is off by 90 degrees
+		idVec3 dir2(dir.y, -dir.x, dir.z);
+		dir2.Normalize();
 
 		if ( g_debugWeapon.GetBool() ) {
 			gameRenderWorld->DebugLine ( colorBlue, origin, origin + dir * 10000.0f, 10000 );		
@@ -991,7 +995,7 @@ void jkVehicleWeapon::LaunchProjectiles() {
 		if ( hitScanDef ) {
 			LaunchHitScan( origin, dir, jointOrigin );
 		} else {
-			LaunchProjectile( origin, dir, parent->GetPhysics()->GetPushedLinearVelocity() );
+			LaunchProjectile( origin, dir2, parent->GetPhysics()->GetPushedLinearVelocity() );
 		}
 	}
 
@@ -1918,4 +1922,234 @@ void jkVehicleThruster::RunPhysics ( void ) {
 		gameRenderWorld->DebugArrow ( colorCyan, worldOrigin, worldOrigin + worldAxis[forceAxis] * 100.0f * mult * (force < 0 ? -1 : 1), 10 );	
 	}
     
+}
+
+//----------------------------------------------------------------
+//
+//						jkVehicleLight
+//
+//----------------------------------------------------------------
+
+CLASS_DECLARATION( jkVehiclePart, jkVehicleLight )
+END_CLASS
+
+/*
+=====================
+jkVehicleLight::jkVehicleLight
+=====================
+*/
+jkVehicleLight::jkVehicleLight ( void ) {
+	lightHandle = -1;
+}
+
+/*
+=====================
+jkVehicleLight::~jkVehicleLight
+=====================
+*/
+jkVehicleLight::~jkVehicleLight ( void ) {
+	if ( lightHandle != -1 ) {
+		gameRenderWorld->FreeLightDef( lightHandle );
+		lightHandle = -1;
+	}
+}
+
+/*
+=====================
+jkVehicleLight::Spawn
+=====================
+*/
+void jkVehicleLight::Spawn ( void ) {
+	idVec3		color;
+	const char* temp;
+
+	memset ( &renderLight, 0, sizeof(renderLight) );
+
+	renderLight.shader	  = declManager->FindMaterial( spawnArgs.GetString ( "mtr_light", "lights/muzzleflash" ), false );
+	renderLight.pointLight  = spawnArgs.GetBool( "pointlight", "1" );
+
+	spawnArgs.GetVector( "color", "0 0 0", color );
+	renderLight.shaderParms[ SHADERPARM_RED ]		= color[0];
+	renderLight.shaderParms[ SHADERPARM_GREEN ]		= color[1];
+	renderLight.shaderParms[ SHADERPARM_BLUE ]		= color[2];
+	renderLight.shaderParms[ SHADERPARM_TIMESCALE ] = 1.0f;
+
+// RAVEN BEGIN
+// dluetscher: added detail levels to render lights
+	//renderLight.detailLevel = DEFAULT_LIGHT_DETAIL_LEVEL;
+// RAVEN END
+
+	renderLight.lightRadius[0] = renderLight.lightRadius[1] = 
+		renderLight.lightRadius[2] = (float)spawnArgs.GetInt( "radius" );
+
+	if ( !renderLight.pointLight ) {
+		renderLight.target = spawnArgs.GetVector( "target" );
+		renderLight.up	   = spawnArgs.GetVector( "up" );
+		renderLight.right  = spawnArgs.GetVector( "right" );
+		renderLight.end	   = spawnArgs.GetVector( "target" );;
+	}
+
+	// Hide flare surface if there is one
+	temp = spawnArgs.GetString ( "flaresurface", "" );
+	if ( temp && *temp ) {
+		//parent->ProcessEvent ( &EV_HideSurface, temp ); FIXME1 Dynamix
+	}
+
+	// Sounds shader when turning light
+	spawnArgs.GetString ( "snd_on", "", soundOn );
+	
+	// Sound shader when turning light off
+	spawnArgs.GetString ( "snd_off", "", soundOff);
+	
+	lightOn = spawnArgs.GetBool( "start_on", "1" );
+	lightHandle = -1;
+}
+
+/*
+=====================
+jkVehicleLight::RunPostPhysics
+=====================
+*/
+void jkVehicleLight::RunPostPhysics ( void ) {
+	if ( lightHandle == -1 || !lightOn ) {
+		return;
+	}
+	
+	UpdateLightDef ( );
+}
+
+/*
+=====================
+jkVehicleLight::UpdateLightDef
+=====================
+*/
+void jkVehicleLight::UpdateLightDef ( void ) {
+	UpdateOrigin ( );
+	
+	renderLight.origin = worldOrigin;
+	renderLight.axis   = worldAxis;	
+	
+	if ( lightHandle == -1 ) {
+		return;
+	}
+	gameRenderWorld->UpdateLightDef( lightHandle, &renderLight );	
+}
+
+/*
+=====================
+jkVehicleLight::Activate
+=====================
+*/
+void jkVehicleLight::Activate ( bool active ) {
+	jkVehiclePart::Activate ( active );
+	
+	if ( active && lightOn ) {
+		TurnOn ( );
+	} else {
+		TurnOff ( );
+	}
+}
+
+/*
+=====================
+jkVehicleLight::TurnOff
+=====================
+*/
+void jkVehicleLight::TurnOff ( void ) {
+	const char* surface;
+
+	if ( lightHandle != -1 ) {
+		gameRenderWorld->FreeLightDef( lightHandle );
+		lightHandle = -1;
+
+		// Play off sound
+		if ( soundOff.Length() ) {
+			parent->StartSoundShader ( declManager->FindSound ( soundOff ), soundChannel, 0, false, NULL );
+		}
+	}
+	
+	// Hide flare surface if there is one
+	surface = spawnArgs.GetString ( "flaresurface", "" );
+	if ( surface && *surface ) {
+		//parent->ProcessEvent ( &EV_HideSurface, surface ); FIXME1 Dynamix
+	}
+}
+
+/*
+=====================
+jkVehicleLight::TurnOn
+=====================
+*/
+void jkVehicleLight::TurnOn ( void ) {
+	const char* surface;
+
+	if ( lightHandle == -1 ) {
+		lightHandle = gameRenderWorld->AddLightDef( &renderLight );
+	}
+
+	// Play off sound
+	if ( soundOn.Length() ) {
+		parent->StartSoundShader ( declManager->FindSound ( soundOn ), soundChannel, 0, false, NULL );
+	}
+
+	// Show flare surface if there is one
+	surface = spawnArgs.GetString ( "flaresurface", "" );
+	if ( surface && *surface ) {
+		//parent->ProcessEvent ( &EV_ShowSurface, surface ); FIXME1 Dynamix
+	}
+	
+	UpdateLightDef ( );
+}
+
+/*
+=====================
+jkVehicleLight::Impulse
+=====================
+*/
+void jkVehicleLight::Impulse ( int impulse ) {
+	//Dynamix FIXME1, put it on flashlight key?
+// jmarshall - todo
+	//switch ( impulse ) {
+	//	case IMPULSE_50:
+	//		if ( lightOn ) {
+	//			lightOn = false;
+	//			TurnOff ( );
+	//		} else {
+	//			lightOn = true;
+	//			TurnOn ( );
+	//		}
+	//		break;
+	//}
+// jmarshall end
+}
+
+/*
+=====================
+jkVehicleLight::Save
+=====================
+*/
+void jkVehicleLight::Save ( idSaveGame* savefile ) const {
+	savefile->WriteRenderLight ( renderLight );
+	savefile->WriteInt ( lightHandle );
+	savefile->WriteBool ( lightOn );
+	savefile->WriteString ( soundOn );
+	savefile->WriteString ( soundOff );
+}
+
+/*
+=====================
+jkVehicleLight::Restore
+=====================
+*/
+void jkVehicleLight::Restore ( idRestoreGame* savefile ) {
+	savefile->ReadRenderLight ( renderLight );
+	savefile->ReadInt ( lightHandle );
+	if ( lightHandle != -1 ) {
+		//get the handle again as it's out of date after a restore!
+		lightHandle = gameRenderWorld->AddLightDef( &renderLight );
+	}
+
+	savefile->ReadBool ( lightOn );
+	savefile->ReadString ( soundOn );
+	savefile->ReadString ( soundOff );
 }

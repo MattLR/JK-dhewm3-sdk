@@ -93,13 +93,22 @@ public:
 	bool					IsIdle( void ) const;
 	animFlags_t				GetAnimFlags( void ) const;
 
+	//Dynamix - code based states
+	rvStateThread&			GetStateThread	( void );
+	void					PostCState		( const char* name, int blendFrames = 0, int delay = 0, int flags = 0 );
+
 private:
 	idActor *				self;
 	idAnimator *			animator;
 	idThread *				thread;
 	int						channel;
 	bool					disabled;
+	rvStateThread			stateThread;
 };
+
+ID_INLINE rvStateThread& idAnimState::GetStateThread ( void ) {
+	return stateThread;
+}
 
 class idAttachInfo {
 public:
@@ -214,10 +223,13 @@ public:
 	bool					InAnimState( int channel, const char *name ) const;
 	const char *			WaitState( void ) const;
 	void					SetWaitState( const char *_waitstate );
-	bool					AnimDone( int channel, int blendFrames ) const;
+	bool					AnimDone( int channel, int blendFrames );
 	virtual void			SpawnGibs( const idVec3 &dir, const char *damageDefName );
 
-	//Dynamix
+	//Dynamix - coded anim states + vehicle stuff
+	int						PlayAnim				( int channel, const char *name, int blendFrames );
+	void					SetCAnimState			( int channel, const char *name, int blendFrames = 0, int flags = 0 );
+	void					PostCAnimState			( int channel, const char *name, int blendFrames = 0, int delay = 0, int flags = 0 );
 	bool					IsInVehicle ( void ) const;
 
 protected:
@@ -266,6 +278,8 @@ protected:
 	idAnimState				headAnim;
 	idAnimState				torsoAnim;
 	idAnimState				legsAnim;
+
+	rvStateThread			stateThread;
 
 	bool					allowPain;
 	bool					allowEyeFocus;
@@ -341,6 +355,9 @@ private:
 	//Dynamix
 	void					Event_EnterVehicle	( idEntity* vehicle );
 	void					Event_ExitVehicle	( bool force );
+
+	protected:
+	idAnimState&			GetCAnimState			( int channel );
 };
 
 ID_INLINE bool idActor::IsInVehicle( void ) const {

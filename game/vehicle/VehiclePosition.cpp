@@ -243,7 +243,7 @@ bool jkVehiclePosition::SetDriver ( idActor* driver ) {
 				mParent->GetWorldOrigin( mDriverJoint, bindPos );
 				mDriver->SetOrigin( bindPos );
 				mDriver->Unbind();
-				//mDriver->GetPhysics()->SetAxis ( mParent->GetAxis( ) );// Not sure if this is needed
+				mDriver->GetPhysics()->SetAxis ( mParent->GetAxis( ) );// Not sure if this is needed
 				mDriver->BindToJoint ( mParent, mDriverJoint, true );
 				mDriver->GetPhysics()->UnlinkClip();
 				//mDriver->GetPhysics()->SetOrigin ( vec3_origin );
@@ -462,11 +462,13 @@ void jkVehiclePosition::UpdateInternalView ( bool force ) {
 	fl.internalView = internal;
 
 	if ( fl.depthHack ) {
+		//FIXME1
 		//mParent->GetRenderEntity()->weaponDepthHackInViewID = (IsOccupied() && fl.internalView) ? GetDriver()->entityNumber + 1 : 0;
 	}
 	
 	// Show and hide the internal surface
 	if ( mInternalSurface.Length() ) {
+		//FIXME1
 		//mParent->ProcessEvent ( fl.internalView ? &EV_ShowSurface : &EV_HideSurface, mInternalSurface.c_str() );
 	}
 }
@@ -633,11 +635,14 @@ jkVehiclePosition::GetPosition
 */
 void jkVehiclePosition::GetPosition( const jointHandle_t jointHandle, const idVec3& offset, const idMat3& jointTransform, const idAngles& scale, const int axisMap[], const int dirMap[], idVec3& origin, idMat3& axis ) const {
 	if( GetParent()->GetAnimator()->GetJointTransform(jointHandle, gameLocal.GetTime(), origin, axis) ) {
-		axis *= jointTransform;
+		axis *= jointTransform; //Don't know what this does Dynamix
 		//idAngles ang( axis.ToAngles().Remap(axisMap, dirMap).Scale(scale) ); FIXME1 Dynamix
 		//axis = ang.Normalize360().ToMat3() * mAxisOffset;
+		//Dynamix - FIXME1 This fixed the maxisoffset sort of but doesn't really work
+		//axis = GetAxis() * mAxisOffset;
 		
 		origin = GetParent()->GetOrigin() + (origin + offset * axis) * GetParent()->GetAxis();
+
 	} else {
 		origin = GetOrigin( mEyeOffset );
 		axis   = GetAxis();
