@@ -1187,7 +1187,6 @@ void idAI::LinkScriptVariables( void ) {
 	AI_PUSHED.LinkTo(			scriptObject, "AI_PUSHED" );
 	//Dynamix
 	AI_DISABLED_TIME.LinkTo(		scriptObject, "AI_DISABLED_TIME" );
-	AI_DISABLED_ANIM.LinkTo(		scriptObject, "AI_DISABLED_ANIM" );
 }
 
 /*
