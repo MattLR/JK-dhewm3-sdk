@@ -3259,3 +3259,34 @@ void idPhantomObjects::Think( void ) {
 		BecomeInactive( TH_THINK );
 	}
 }
+
+/*
+===============================================================================
+
+idFuncRadioChatter
+
+===============================================================================
+*/
+CLASS_DECLARATION( idStaticEntity, idAnimatedVertex )
+END_CLASS
+
+idAnimatedVertex::idAnimatedVertex () {
+}
+
+void idAnimatedVertex::Spawn ( void ) {
+	idStr model = spawnArgs.GetString( "model" );
+	renderEntity.hModel = animator.SetModel(model);
+	animator.PlayAnim("main", true);
+	BecomeActive( TH_THINK );
+}
+
+void idAnimatedVertex::Think ( void ) {
+	idStaticEntity::Think();
+	UpdateVisuals();
+	animator.Update();
+	renderEntity.shaderParms[SHADERPARM_MD3_FRAME] = animator.GetCurrentFrame();
+	renderEntity.shaderParms[SHADERPARM_MD3_LASTFRAME] = animator.GetLastFrame();
+	renderEntity.shaderParms[SHADERPARM_MD3_BACKLERP] = animator.GetBacklerp();
+
+	Present();
+}

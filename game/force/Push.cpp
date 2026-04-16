@@ -84,7 +84,7 @@ void jkForcePush::Event_DoForcePower( void ) {
 			// Handle NPCs/enemies (idAI or subclasses)
 			idAI *ai = dynamic_cast<idAI*>( ent );
 			if ( ent->IsType( idAI::Type ) ) {
-				ai->PostEventMS(&AI_PlayAnim, 1, 1, "knockdown");
+				//ai->PostEventMS(&AI_PlayAnim, 1, 1, "knockdown");
 		}
 		
 		idAFEntity_Base *rag = dynamic_cast<idAFEntity_Base*>( ent );

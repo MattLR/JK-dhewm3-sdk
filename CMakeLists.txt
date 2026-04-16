@@ -20,6 +20,7 @@ set(src_game_mod
 	# add additional .cpp files of your mod in game/
 	# (that you added to the ones already existant in the SDK/in dhewm3)
 	# like "game/MyFile.cpp" (without quotes, one file per line)
+	game/anim/Anim_Vertex.cpp
 	game/Tracer.cpp
 	game/Force.cpp
 	game/force/Absorb.cpp

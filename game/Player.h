@@ -39,6 +39,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Projectile.h"
 #include "PlayerIcon.h"
 #include "GameEdit.h"
+#include "vehicle/Vehicle.h"
 
 class idAI;
 

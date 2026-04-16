@@ -3085,9 +3085,10 @@ inflictor, attacker, dir, and point can be NULL for environmental effects
 
 ============
 */
-void idEntity::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
+bool idEntity::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
 					  const char *forceDefName, const int forceLevel, const int location ) {
 						gameLocal.DPrintf ("ForcePowerResponse idEntity\n");
+						return false;
 }
 
 /*

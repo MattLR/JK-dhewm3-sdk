@@ -907,16 +907,11 @@ void jkVehicleWeapon::LaunchProjectile( const idVec3& origin, const idVec3& _dir
 			}
 		}
 	}
-	
-#ifdef _XENON
-
-	AutoAim( player, origin, dir );
-
-#endif
-
 
 	projectile = ( idProjectile * )ent;
 	//projectile->Create( position->GetDriver(), origin, dir, parent ); FIXME1
+	//the last parent param is an entity to ignore, in Doom 3 I think just spawn it inside the entity or something, will fix
+	projectile->Create( parent, origin, dir );
 	projectile->Launch( origin, dir, pushVelocity, 0.0f, 1.0f );
 	
 	if ( projectile->IsType ( idGuidedProjectile::Type ) ) {

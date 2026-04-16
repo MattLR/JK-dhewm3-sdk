@@ -32,6 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "physics/Physics_Parametric.h"
 #include "physics/Force_Field.h"
 #include "physics/Force_Spring.h"
+#include "anim/Anim_Vertex.h"
 
 /*
 ===============================================================================
@@ -774,6 +775,34 @@ private:
 	idEntityPtr<idActor>target;
 	idList<int>			targetTime;
 	idList<idVec3>		lastTargetPos;
+};
+
+/*
+===============================================================================
+
+  idAnimatedVertex
+
+===============================================================================
+*/
+
+class idAnimatedVertex : public idStaticEntity {
+public:
+	CLASS_PROTOTYPE( idAnimatedVertex );
+
+						idAnimatedVertex( void );
+
+	void				Spawn( void );
+
+	//virtual void		Hide( void );
+	//virtual void		Show( void );
+
+	virtual void		Think( void );
+
+	//virtual void		WriteToSnapshot( idBitMsgDelta &msg ) const;
+	//virtual void		ReadFromSnapshot( const idBitMsgDelta &msg );
+
+private:
+	dnVertexAnimator	animator;
 };
 
 #endif /* !__GAME_MISC_H__ */

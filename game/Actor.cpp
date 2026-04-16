@@ -382,6 +382,8 @@ const idEventDef AI_SetState( "setState", "s" );
 const idEventDef AI_GetState( "getState", NULL, 's' );
 const idEventDef AI_GetHead( "getHead", NULL, 'e' );
 //Dynamix
+const idEventDef AI_GetDisabledAnim( "getDisabledAnim", NULL, 's' );
+const idEventDef AI_GetGetUpAnim( "getGetUpAnim", NULL, 's' );
 const idEventDef AI_EnterVehicle ( "enterVehicle", "e" );
 const idEventDef AI_ExitVehicle ( "exitVehicle", "d" );
 //const idEventDef AI_PostExitVehicle ( "<exitVehicle>", "d" );
@@ -429,6 +431,8 @@ CLASS_DECLARATION( idAFEntity_Gibbable, idActor )
 	EVENT( AI_GetState,					idActor::Event_GetState )
 	EVENT( AI_GetHead,					idActor::Event_GetHead )
 	//Dynamix
+	EVENT( AI_GetDisabledAnim,			idActor::Event_GetDisabledAnim )
+	EVENT( AI_GetGetUpAnim,				idActor::Event_GetGetUpAnim )
 	EVENT( AI_EnterVehicle,				idActor::Event_EnterVehicle )
 	EVENT( AI_ExitVehicle,				idActor::Event_ExitVehicle )
 END_CLASS
@@ -2773,6 +2777,32 @@ void idActor::Event_GetPainAnim( void ) {
 		idThread::ReturnString( "pain" );
 	} else {
 		idThread::ReturnString( painAnim );
+	}
+}
+
+/*
+=====================
+idActor::Event_GetDisabledAnim
+=====================
+*/
+void idActor::Event_GetDisabledAnim( void ) {
+	if ( !disabledAnim.Length() ) {
+		idThread::ReturnString( "knockdown" );
+	} else {
+		idThread::ReturnString( disabledAnim );
+	}
+}
+
+/*
+=====================
+idActor::Event_GetGetUpAnim
+=====================
+*/
+void idActor::Event_GetGetUpAnim( void ) {
+	if ( !getUpAnim.Length() ) {
+		idThread::ReturnString( "BOTH_GETUP1" );
+	} else {
+		idThread::ReturnString( getUpAnim );
 	}
 }
 

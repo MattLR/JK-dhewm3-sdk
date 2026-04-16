@@ -421,6 +421,8 @@ protected:
 	idScriptBool			AI_DEST_UNREACHABLE;
 	idScriptBool			AI_HIT_ENEMY;
 	idScriptBool			AI_PUSHED;
+	//Dynamix
+	idScriptFloat			AI_DISABLED_TIME;
 
 	//
 	// ai/ai.cpp
@@ -463,7 +465,7 @@ protected:
 	virtual void			Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 
 	//Dynamix
-	virtual	void			ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, const char *forceDefName, const int forceLevel, const int location );
+	virtual	bool			ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, const char *forceDefName, const int forceLevel, const int location );
 
 
 	// navigation

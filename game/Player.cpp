@@ -6486,7 +6486,7 @@ void idPlayer::UseVehicle( void ) {
 				//Hide();
 				static_cast<jkRBVehicleTest*>(ent)->Use( this );
 				inVehicle = true;
-			} else if (1) {
+			} else if (ent && ent->IsType( jkVehicle::Type) ) {
 				ProcessEvent ( &AI_EnterVehicle, ent );
 			} else if ( ent && ent->IsType( idTrigger::Type) && (ent->spawnArgs.GetInt("spawnflags") & 4) ) {
 				ent->Signal( SIG_TRIGGER );

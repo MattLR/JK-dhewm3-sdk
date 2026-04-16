@@ -230,7 +230,7 @@ public:
 	int						PlayAnim				( int channel, const char *name, int blendFrames );
 	void					SetCAnimState			( int channel, const char *name, int blendFrames = 0, int flags = 0 );
 	void					PostCAnimState			( int channel, const char *name, int blendFrames = 0, int delay = 0, int flags = 0 );
-	bool					IsInVehicle ( void ) const;
+	bool					IsInVehicle 			( void ) const;
 
 protected:
 	friend class			idAnimState;
@@ -265,6 +265,9 @@ protected:
 
 	idStr					animPrefix;
 	idStr					painAnim;
+	//Dynamix
+	idStr					disabledAnim;
+	idStr					getUpAnim;
 
 	// blinking
 	int						blink_anim;
@@ -325,6 +328,9 @@ private:
 	void					Event_DisablePain( void );
 	void					Event_EnablePain( void );
 	void					Event_GetPainAnim( void );
+	//Dynamix
+	void					Event_GetDisabledAnim( void );
+	void					Event_GetGetUpAnim( void );
 	void					Event_StopAnim( int channel, int frames );
 	void					Event_PlayAnim( int channel, const char *name );
 	void					Event_PlayCycle( int channel, const char *name );

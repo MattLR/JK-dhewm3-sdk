@@ -33,7 +33,7 @@ void jkForcePull::Event_DoForcePower( void ) {
 	listedEntities = gameLocal.EntitiesWithinRadius( GetPhysics()->GetOrigin(), pushRadius, entityList, MAX_GENTITIES );
 
 	int pushStrength = 1000;
-	gameLocal.Printf("Push\n");
+	gameLocal.Printf("Pull\n");
 	idVec3 origin = GetPhysics()->GetOrigin();
 	idVec3 offset( 0.0f, 40.0f, 0.0f );
 	// Collect entities within radius. Doom 3 doesn't have a direct RadiusList helper in public SDK,
@@ -50,7 +50,6 @@ void jkForcePull::Event_DoForcePower( void ) {
 			// basic distance check
 			idVec3 eorg = ent->GetPhysics()->GetOrigin();
 			float dist = ( eorg - origin ).Length();
-			if ( dist > pushRadius ) continue;
 
 			// Direction and strength falloff (optional)
 			idVec3 dir = eorg - (origin + offset);
@@ -60,9 +59,8 @@ void jkForcePull::Event_DoForcePower( void ) {
 				dir.Normalize();
 			}
 
-			float falloff = 1.0f - ( dist / pushRadius );
+			float falloff = 0.0f + ( dist / pushRadius );
 			float impulse = pushStrength * falloff;
-
 
 			idPhysics *phys = ent->GetPhysics();
 			if ( !phys ) {
@@ -73,7 +71,9 @@ void jkForcePull::Event_DoForcePower( void ) {
 				phys->SetLinearVelocity( vel );
 				*/
 			}
-			ent->ForcePowerResponse(this, this, dir, "push", 1, INVALID_JOINT);
+			if (ent->ForcePowerResponse(this, this, -dir, "pull", 1, INVALID_JOINT)) {
+				continue;
+			}
 			//idMover_Binary *binary = dynamic_cast<idMover_Binary*>( ent );
 			if ( ent->IsType( idMover_Binary::Type ) ) {
 				//continue;
@@ -94,16 +94,5 @@ void jkForcePull::Event_DoForcePower( void ) {
 			}
 			continue;
 		}
-			
-
-			// Damage small amount to ragdollable entities or apply other effects
-		if ( ent->fl.takedamage ) {
-			// Create damage structure
-			int dmg = (int)( 10.0f * falloff );
-			if ( dmg > 0 ) {
-					idEntity *inflictor = this;
-					ent->Damage( this, inflictor, dir, "push_power", dmg, 0 );
-				}
-			}
-		}
+	}
 }

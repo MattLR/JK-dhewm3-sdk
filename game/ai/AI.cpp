@@ -1185,6 +1185,9 @@ void idAI::LinkScriptVariables( void ) {
 	AI_HIT_ENEMY.LinkTo(		scriptObject, "AI_HIT_ENEMY" );
 	AI_OBSTACLE_IN_PATH.LinkTo(	scriptObject, "AI_OBSTACLE_IN_PATH" );
 	AI_PUSHED.LinkTo(			scriptObject, "AI_PUSHED" );
+	//Dynamix
+	AI_DISABLED_TIME.LinkTo(		scriptObject, "AI_DISABLED_TIME" );
+	AI_DISABLED_ANIM.LinkTo(		scriptObject, "AI_DISABLED_ANIM" );
 }
 
 /*
@@ -3249,58 +3252,102 @@ inflictor, attacker, dir, and point can be NULL for environmental effects
 
 ============
 */
-void idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
-					  const char *forceDefName, const int forceLevel, const int location ) {
-				gameLocal.DPrintf ("ForcePowerResponse idAI\n");
-
-
-		if ( idStr::Icmp(forceDefName, "push") == 0 ) {
-
-			idPhysics *phys = this->GetPhysics();
-			int pushRadius = 400;
-			int pushStrength = 1000;
-			idVec3 inflictorOrigin = inflictor->GetPhysics()->GetOrigin();
-			idVec3 thisOrigin = phys->GetOrigin();
-			idVec3 offset( 0.0f, 0.0f, -10.0f );
-			idVec3 oldGrav = phys->GetGravity();
-			idVec3 grav( 0.0f, 0.0f, 0.0f );
-			float dist = ( thisOrigin - inflictorOrigin ).Length();
-			
-			float falloff = 1.0f - ( dist / pushRadius );
-			float impulse = pushStrength * falloff;
-			idVec3 vel = phys->GetLinearVelocity();
-			vel += dir * impulse;
-			//phys->Se
-    		phys->SetGravity(grav);
-			//phys->SetOrigin(phys->GetOrigin() - offset);
-			phys->SetLinearVelocity( vel );
-			phys->SetGravity(oldGrav);
-			//phys->ApplyImpulse(  0, phys->GetOrigin(), dir * impulse);
-			// Should be ApplyImpulse really
-			//idVec3 center = ai->GetPhysics()->GetCenterOfMass();
-			//ai->GetPhysics()->ApplyImpulse(inflictor, 0, this-GetObjectCe, dir * impulse);
-			//obEnt->ApplyImpulse( this, 0, obEnt->GetPhysics()->GetOrigin(), forceVec );
-			//phys->SetLinearVelocity( phys->GetLinearVelocity() + finalDir * (finalImpulse * 0.6f) );
-			//phys->SetLinearVelocity( dir * impulse * 0.5f );
-			//ai->Pain( this, this, dir, 0, vec3_origin, 0 ); // trigger stumble/pain reaction
-			//continue;
-
+bool idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
+	const char *forceDefName, const int forceLevel, const int location ) {
+	gameLocal.DPrintf ("ForcePowerResponse idAI\n");
 	
-				
-				gameLocal.Printf ("Endtime %d\n", gameLocal.GetTime());
+	if (static_cast<idActor*>(attacker)->team == team) {
+		return true;
+	}
+
+	if ( idStr::Icmp(forceDefName, "push") == 0 ) {
+		idPhysics *phys = this->GetPhysics();
+		int pushRadius = 400;
+		int pushStrength = 1000;
+		idVec3 inflictorOrigin = inflictor->GetPhysics()->GetOrigin();
+		idVec3 thisOrigin = phys->GetOrigin();
+		idVec3 offset( 0.0f, 0.0f, -15.0f );
+		float dist = ( thisOrigin - inflictorOrigin ).Length();
+		
+		float falloff = 1.0f - ( dist / pushRadius );
+		float impulse = pushStrength * falloff;
+		idVec3 vel = phys->GetLinearVelocity();
+		vel += dir * impulse;
+		//Don't know if I'm calculating it wrong but using the actual z component doesn't work very well 
+		vel.z = 250 * falloff;
+		//phys->SetOrigin(phys->GetOrigin() - offset);
+		//phys-> SetOrigin(thisOrigin - offset);
+		phys->SetLinearVelocity( vel );
+		//phys->ApplyImpulse(  0, phys->GetOrigin(), dir * impulse);
+		// Should be ApplyImpulse really
+		//idVec3 center = ai->GetPhysics()->GetCenterOfMass();
+		//ai->GetPhysics()->ApplyImpulse(inflictor, 0, this-GetObjectCe, dir * impulse);
+		//obEnt->ApplyImpulse( this, 0, obEnt->GetPhysics()->GetOrigin(), forceVec );
+		//phys->SetLinearVelocity( phys->GetLinearVelocity() + finalDir * (finalImpulse * 0.6f) );
+		//phys->SetLinearVelocity( dir * impulse * 0.5f );
+		//continue;
+
+		//Early outs
+		if (health <= 0) {
+			return false;
+		}
+		//Fix this later Dynamix
+		if (AI_DISABLED_TIME > 0.0f) {
+			return true;
+		}
+
+		disabledAnim = "knockdown";
+		getUpAnim = "BOTH_GETUP1";
+		AI_DISABLED_TIME = 3.0f + gameLocal.random.RandomFloat();
+		state = GetScriptFunction( "state_Disabled" );
+		SetState(state);
+		return true;
 	} else if ( idStr::Icmp(forceDefName, "pull") == 0 ) {
-		} else if ( idStr::Icmp(forceDefName, "grip") == 0 ) {
-			state = GetScriptFunction( "state_Gripped" );
-			SetState(state);
+
+		//Early outs
+		if (health <= 0) {
+			return false;
+		}
+		//Fix this later Dynamix - flag?
+		if (AI_DISABLED_TIME > 0.0f) {
+			return true;
+		}
+		idPhysics *phys = this->GetPhysics();
+		int pushRadius = 400;
+		int pushStrength = 1000;
+		idVec3 inflictorOrigin = inflictor->GetPhysics()->GetOrigin();
+		idVec3 thisOrigin = phys->GetOrigin();
+		idVec3 offset( 0.0f, 0.0f, -15.0f );
+		float dist = ( thisOrigin - inflictorOrigin ).Length();
+		
+		float falloff = 0.0f + ( dist / pushRadius );
+		float impulse = pushStrength * falloff;
+		idVec3 vel = phys->GetLinearVelocity();
+		vel += dir * impulse;
+		//Don't know if I'm calculating it wrong but using the actual z component doesn't work very well 
+		vel.z = 250 * falloff;
+		phys->SetLinearVelocity( vel );
+			
+		disabledAnim = "BOTH_KNOCKDOWN3";
+		getUpAnim = "BOTH_GETUP3";
+		AI_DISABLED_TIME = 3.0f + gameLocal.random.RandomFloat();
+		state = GetScriptFunction( "state_Disabled" );
+		SetState(state);
+		return true;
+	} else if ( idStr::Icmp(forceDefName, "grip") == 0 ) {
+		state = GetScriptFunction( "state_Gripped" );
+		SetState(state);
+		return true;
 	} else if ( idStr::Icmp(forceDefName, "mindtrick") == 0 ) {
-		team = 0;
+		team = static_cast<idActor*>(attacker)->team;
 		rank = -1;
 		ClearEnemy();
 		PostEventSec( &AI_EndMindTrick, 10);
 		//PostEventMS clear mindtrick
+		return true;
 	} else if ( idStr::Icmp(forceDefName, "drain") == 0 ) {
-		return;
 	}
+	return false;
 }
 
 

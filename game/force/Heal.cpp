@@ -23,6 +23,5 @@ jkForceHeal::Event_DoForcePower
 */
 void jkForceHeal::Event_DoForcePower( void ) {
 	gameLocal.DPrintf ("Event_DoForcePower Force Heal\n");
-
 	owner->GiveHealthPool(25);
 }
