@@ -809,7 +809,11 @@ void idTestModel::ArgCompletion_TestModel( const idCmdArgs &args, void(*callback
 	for ( i = 0; i < num; i++ ) {
 		callback( idStr( args.Argv( 0 ) ) + " " + declManager->DeclByIndex( DECL_MODELDEF, i , false )->GetName() );
 	}
+	#ifdef _CENG
+	cmdSystem->ArgCompletion_FolderExtension( args, callback, "models/", false, ".lwo", ".ase", ".md5mesh", ".ma", ".mb", "md3", "mdc", "mdm", "mdr", "mds", "glm", NULL);
+	#else
 	cmdSystem->ArgCompletion_FolderExtension( args, callback, "models/", false, ".lwo", ".ase", ".md5mesh", ".ma", ".mb", NULL );
+	#endif
 }
 
 /*
