@@ -334,16 +334,6 @@ void Cmd_Give_f( const idCmdArgs &args ) {
 		}
 	}
 
-	if ( give_all || idStr::Icmp( name, "forcepowers" ) == 0 ) {
-		player->inventory.weapons = BIT( MAX_FORCE_POWERS ) - 1;
-		player->CacheWeapons();
-		//player->CacheForcePowers();
-
-		if ( !give_all ) {
-			return;
-		}
-	}
-
 	if ( give_all || idStr::Icmp( name, "ammo" ) == 0 ) {
 		for ( i = 0 ; i < AMMO_NUMTYPES; i++ ) {
 			player->inventory.ammo[ i ] = player->inventory.MaxAmmoForAmmoClass( player, idWeapon::GetAmmoNameForNum( ( ammo_t )i ) );

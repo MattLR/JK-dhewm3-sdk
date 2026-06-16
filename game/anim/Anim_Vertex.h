@@ -68,15 +68,19 @@ class dnVertexAnimator {
 public:
 	idRenderModel*					SetModel(const char* modelDecl);
 	void							PlayAnim(const char* animName, bool loop);
-	int								GetCurrentFrame() const { return currentFrame; }
+	int								GetCurrentFrame() const { return lerpFrame; }
 	int								GetLastFrame() const { return lastFrame; }
 	float							GetBacklerp() const { return backlerp; }
 	void							Update(void);
 	bool							IsAnimDone(void);
 	void							ClearAllAnims(void);
-	//Stuff to fix later Dynamix 
-	//jointHandle_t					GetJointHandle(const char* name);
-	//bool							GetJointTransform(jointHandle_t jointHandle, idVec3& offset, idMat3& axis);
+	
+	#ifdef _CENG
+	jointHandle_t					GetJointHandle(const char* name);
+	bool							GetJointTransform(jointHandle_t jointHandle, idVec3& offset, idMat3& axis);
+	const idJointQuat *				GetDefaultPose( void ) const;
+	#endif
+
 private:
 	const idDict*					currentAnim = nullptr;
 	bool							isLooping = false;
@@ -84,10 +88,12 @@ private:
 	int								lastTime = 0;
 	int								start_frame = 0;
 	int								end_frame = 0;
+	float							fps;
 
-	float							currentFrame= 0;
+	int								lerpFrame;
+	float							currentFrame = 0.0f;
 	int								lastFrame = 0;
-	float							backlerp = 0;
+	float							backlerp = 0.0f;
 
 	idStr							currentAnimName;
 

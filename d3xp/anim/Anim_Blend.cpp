@@ -2267,7 +2267,7 @@ const jointInfo_t *idDeclModelDef::FindJoint( const char *name ) const {
 	if ( !modelHandle ) {
 		return NULL;
 	}
-
+	
 	joint = modelHandle->GetJoints();
 	for( i = 0; i < joints.Num(); i++, joint++ ) {
 		if ( !joint->name.Icmp( name ) ) {

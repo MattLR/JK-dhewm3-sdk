@@ -45,6 +45,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "SmokeParticles.h"
 
 #include "Entity.h"
+//Dynamix
+#include "Misc.h"
 
 /*
 ===============================================================================
@@ -1880,6 +1882,39 @@ void idEntity::BindToJoint( idEntity *master, const char *jointname, bool orient
 		return;
 	}
 
+	if (master->IsType(idAnimatedVertex::Type)) {
+		gameLocal.Printf("Vertex animator bind to joint (tag)\n");
+
+		dnVertexAnimator	*masterAnimatorVertex;
+
+		idAnimatedVertex *vmaster = static_cast<idAnimatedVertex *>( master );
+
+		masterAnimatorVertex = vmaster->GetVertexAnimator();
+
+		if ( !masterAnimatorVertex ) {
+		gameLocal.Warning( "idEntity::BindToJoint: entity '%s' cannot support skeletal models.", master->GetName() );
+		return;
+		}
+
+		jointnum = masterAnimatorVertex->GetJointHandle( jointname );
+		if ( jointnum == INVALID_JOINT ) {
+			gameLocal.Warning( "idEntity::BindToJoint: joint (tag) '%s' not found on entity '%s'.", jointname, master->GetName() );
+		}
+
+		PreBind();
+
+		bindJoint = jointnum;
+		bindBody = -1;
+		bindMaster = master;
+		fl.bindOrientated = orientated;
+
+		FinishBind();
+
+		PostBind();
+
+		return;
+	}
+
 	masterAnimator = master->GetAnimator();
 	if ( !masterAnimator ) {
 		gameLocal.Warning( "idEntity::BindToJoint: entity '%s' cannot support skeletal models.", master->GetName() );
@@ -2270,6 +2305,34 @@ bool idEntity::GetMasterPosition( idVec3 &masterOrigin, idMat3 &masterAxis ) con
 	idAnimator	*masterAnimator;
 
 	if ( bindMaster ) {
+
+		//Dynamix vertex model stuff
+		if (bindMaster->IsType(idAnimatedVertex::Type)) {
+		idAnimatedVertex *vbindMaster = static_cast<idAnimatedVertex *>( bindMaster );
+		dnVertexAnimator	*masterAnimatorVertex;
+
+		if ( bindJoint != INVALID_JOINT ) {
+		
+		masterAnimatorVertex = vbindMaster->GetVertexAnimator();
+			if ( !masterAnimatorVertex ) {
+					masterOrigin = vec3_origin;
+					masterAxis = mat3_identity;
+					return false;
+				} else {
+					masterAnimatorVertex->GetJointTransform( bindJoint, masterOrigin, masterAxis );
+					masterAxis *= bindMaster->renderEntity.axis;
+					masterOrigin = bindMaster->renderEntity.origin + masterOrigin * bindMaster->renderEntity.axis;
+				}
+			} else if ( bindBody >= 0 && bindMaster->GetPhysics() ) {
+				masterOrigin = bindMaster->GetPhysics()->GetOrigin( bindBody );
+				masterAxis = bindMaster->GetPhysics()->GetAxis( bindBody );
+			} else {
+				masterOrigin = bindMaster->renderEntity.origin;
+				masterAxis = bindMaster->renderEntity.axis;
+			}
+			return true;
+		} 
+
 		// if bound to a joint of an animated model
 		if ( bindJoint != INVALID_JOINT ) {
 			masterAnimator = bindMaster->GetAnimator();

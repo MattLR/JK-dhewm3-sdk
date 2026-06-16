@@ -798,11 +798,20 @@ public:
 
 	virtual void		Think( void );
 
+	dnVertexAnimator *	GetVertexAnimator( void );	// returns animator object used by this entity
+	bool				GetJointWorldTransform( jointHandle_t jointHandle, int currentTime, idVec3 &offset, idMat3 &axis );
+
 	//virtual void		WriteToSnapshot( idBitMsgDelta &msg ) const;
 	//virtual void		ReadFromSnapshot( const idBitMsgDelta &msg );
 
 private:
 	dnVertexAnimator	animator;
+
+	void				Event_SetAnimation( const char *animName );
+	void				Event_GetJointHandle( const char *jointName );
+	void				Event_GetJointPos( jointHandle_t jointnum );
+	void				Event_GetJointAngle( jointHandle_t jointnum );
+	void				Event_SuppressView( idEntity *owner );
 };
 
 #endif /* !__GAME_MISC_H__ */

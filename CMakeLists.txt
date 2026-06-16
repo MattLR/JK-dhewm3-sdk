@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8...3.22 FATAL_ERROR)
 project(dhewm3sdk)
 
 option(BASE		"Build the base (game/) game code" ON)
-set(BASE_NAME	"jk" CACHE STRING "Name of the mod built from game/ (will result in \${BASE_NAME}.dll)")
+set(BASE_NAME	"rtcw" CACHE STRING "Name of the mod built from game/ (will result in \${BASE_NAME}.dll)")
 set(BASE_DEFS	"GAME_DLL;_CENG" CACHE STRING "Compiler definitions for the mod built from game/")
 
 option(D3XP		"Build the d3xp/ game code" ON)
@@ -22,19 +22,6 @@ set(src_game_mod
 	# like "game/MyFile.cpp" (without quotes, one file per line)
 	game/anim/Anim_Vertex.cpp
 	game/Tracer.cpp
-	game/Force.cpp
-	game/force/Absorb.cpp
-	game/force/Drain.cpp
-	game/force/Grip.cpp
-	game/force/Heal.cpp
-	game/force/Lightning.cpp
-	game/force/Protection.cpp
-	game/force/Pull.cpp
-	game/force/Push.cpp
-	game/force/Rage.cpp
-	game/force/Sense.cpp
-	game/force/Speed.cpp
-	game/force/Trick.cpp
 	game/gamesys/State.cpp
 	game/vehicle/Vehicle.cpp
 	game/vehicle/VehicleAnimated.cpp

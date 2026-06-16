@@ -2224,6 +2224,23 @@ const jointInfo_t *idDeclModelDef::FindJoint( const char *name ) const {
 		return NULL;
 	}
 
+	//Dynamix - workaround for joints with names in, just use index instead
+	bool isNum = false;
+	while (*name) {
+		isNum = true;
+		if (!isdigit((unsigned char)*name)) {
+		isNum = false;
+		break; // Non-digit character found
+		}
+		name++;
+	}
+
+	if (isNum) {
+	int num = atoi(name);
+	joint = modelHandle->GetJoints();
+	return &joints[ num ];
+	}
+
 	joint = modelHandle->GetJoints();
 	for( i = 0; i < joints.Num(); i++, joint++ ) {
 		if ( !joint->name.Icmp( name ) ) {
@@ -2663,7 +2680,7 @@ bool idDeclModelDef::Parse( const char *text, const int textLength ) {
 			}
 			filename = token2;
 			filename.ExtractFileExtension( extension );
-			if ( extension != MD5_MESH_EXT ) {
+			if ( extension != MD5_MESH_EXT && extension != "mds" ) {
 				src.Warning( "Invalid model for MD5 mesh" );
 				MakeDefault();
 				return false;
