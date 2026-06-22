@@ -1438,8 +1438,14 @@ void idAnimated::Event_LaunchMissiles( const char *projectilename, const char *s
 ===============================================================================
 */
 
+//Dynamix - Move these to entity?
+const idEventDef EV_SetFirstPerson( "setFirstPerson", NULL );
+const idEventDef EV_SetThirdPerson( "setThirdPerson", NULL );
+
 CLASS_DECLARATION( idEntity, idStaticEntity )
 	EVENT( EV_Activate,				idStaticEntity::Event_Activate )
+	EVENT( EV_SetFirstPerson,		idStaticEntity::Event_SetFirstPerson )
+	EVENT( EV_SetThirdPerson,		idStaticEntity::Event_SetThirdPerson )
 END_CLASS
 
 /*
@@ -1684,6 +1690,26 @@ void idStaticEntity::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 	if ( msg.HasChanged() ) {
 		UpdateVisuals();
 	}
+}
+
+/*
+================
+idStaticEntity::Event_SetFirstPerson
+================
+*/
+void idStaticEntity::Event_SetFirstPerson( void ) {
+	renderEntity.allowSurfaceInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+	renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+}
+
+/*
+================
+idStaticEntity::Event_SetThirdPerson
+================
+*/
+void idStaticEntity::Event_SetThirdPerson( void ) {
+	renderEntity.suppressSurfaceInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+	renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
 }
 
 
@@ -3263,11 +3289,25 @@ void idPhantomObjects::Think( void ) {
 /*
 ===============================================================================
 
-idFuncRadioChatter
+idAnimatedVertex
 
 ===============================================================================
 */
+
+const idEventDef EV_SetAnimation( "setAnimation", "s" );
+const idEventDef EV_GetJointHandle( "getJointHandle", "s", 'd' );
+const idEventDef EV_GetJointPos( "getJointPos", "d", 'v' );
+const idEventDef EV_GetJointAngle( "getJointAngle", "d", 'v' );
+const idEventDef EV_SuppressView( "suppressView", "e");
+const idEventDef EV_AnimDoneVert( "animDoneV", NULL, 'd');
+
 CLASS_DECLARATION( idStaticEntity, idAnimatedVertex )
+	EVENT( EV_SetAnimation,			idAnimatedVertex::Event_SetAnimation )
+	EVENT( EV_GetJointHandle,		idAnimatedVertex::Event_GetJointHandle )
+	EVENT( EV_GetJointPos,			idAnimatedVertex::Event_GetJointPos )
+	EVENT( EV_GetJointAngle,		idAnimatedVertex::Event_GetJointAngle )
+	EVENT( EV_SuppressView,			idAnimatedVertex::Event_SuppressView )
+	EVENT( EV_AnimDoneVert,			idAnimatedVertex::Event_AnimDone )
 END_CLASS
 
 idAnimatedVertex::idAnimatedVertex () {
@@ -3276,7 +3316,8 @@ idAnimatedVertex::idAnimatedVertex () {
 void idAnimatedVertex::Spawn ( void ) {
 	idStr model = spawnArgs.GetString( "model" );
 	renderEntity.hModel = animator.SetModel(model);
-	animator.PlayAnim("main", true);
+
+	animator.PlayAnim("all", true);
 	BecomeActive( TH_THINK );
 }
 
@@ -3289,4 +3330,108 @@ void idAnimatedVertex::Think ( void ) {
 	renderEntity.shaderParms[SHADERPARM_MD3_BACKLERP] = animator.GetBacklerp();
 
 	Present();
+}
+
+/*
+================
+idAnimatedVertex::GetAnimator
+================
+*/
+dnVertexAnimator *idAnimatedVertex::GetVertexAnimator( void ) {
+	return &animator;
+}
+
+/*=====================
+idAnimatedVertex::Event_SetAnimation
+=====================
+*/
+void idAnimatedVertex::Event_SetAnimation( const char *animName ) {
+	//Dynamix, this will get changed later but it works well enough for now
+	 animator.PlayAnim( animName, 0 );
+}
+
+/*=====================
+idAnimatedVertex::Event_GetJointHandle
+=====================
+*/
+void idAnimatedVertex::Event_GetJointHandle( const char *jointname ) {
+	//Dynamix, this will all get changed later but it works well enough for now
+	jointHandle_t joint;
+
+	joint = animator.GetJointHandle( jointname );
+	idThread::ReturnInt( joint );
+
+}
+
+/*
+=====================
+idAnimatedVertex::GetJointWorldTransform
+=====================
+*/
+bool idAnimatedVertex::GetJointWorldTransform( jointHandle_t jointHandle, int currentTime, idVec3 &offset, idMat3 &axis ) {
+	if ( !animator.GetJointTransform( jointHandle, offset, axis ) ) {
+		return false;
+	}
+
+	ConvertLocalToWorldTransform( offset, axis );
+	return true;
+}
+
+/*
+================
+idAnimatedVertex::Event_GetJointPos
+
+returns the position of the joint in worldspace
+================
+*/
+void idAnimatedVertex::Event_GetJointPos( jointHandle_t jointnum ) {
+	idVec3 offset;
+	idMat3 axis;
+
+	if ( !GetJointWorldTransform( jointnum, gameLocal.time, offset, axis ) ) {
+		gameLocal.Warning( "Joint # %d out of range on entity '%s'",  jointnum, name.c_str() );
+	}
+
+	idThread::ReturnVector( offset );
+}
+
+/*
+================
+idAnimatedVertex::Event_GetJointAngle
+
+returns the orientation of the joint in worldspace
+================
+*/
+void idAnimatedVertex::Event_GetJointAngle( jointHandle_t jointnum ) {
+	idVec3 offset;
+	idMat3 axis;
+
+	if ( !GetJointWorldTransform( jointnum, gameLocal.time, offset, axis ) ) {
+		gameLocal.Warning( "Joint # %d out of range on entity '%s'",  jointnum, name.c_str() );
+	}
+
+	idAngles ang = axis.ToAngles();
+	idVec3 vec( ang[ 0 ], ang[ 1 ], ang[ 2 ] );
+	idThread::ReturnVector( vec );
+}
+
+/*=====================
+idAnimatedVertex::Event_SupressView
+=====================
+*/
+void idAnimatedVertex::Event_SuppressView( idEntity *owner ) {
+	//Dynamix, this will all get changed later but it works well enough for now
+	renderEntity.allowSurfaceInViewID = owner->entityNumber+1;
+}
+
+/*=====================
+idAnimatedVertex::Event_AnimDone
+=====================
+*/
+void idAnimatedVertex::Event_AnimDone( void ) {
+	if ( animator.IsAnimDone()) {
+		idThread::ReturnInt( true );
+	} else {
+		idThread::ReturnInt( false );
+	}
 }

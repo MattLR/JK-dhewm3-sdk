@@ -27,6 +27,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "Anim_Vertex.h"
+#include "idlib/geometry/JointTransform.h"
 #include "Game_local.h"
 #include "renderer/ModelManager.h"
 
@@ -44,7 +45,7 @@ dnDeclVertexAnim::DefaultDefinition
 =====================
 */
 const char* dnDeclVertexAnim::DefaultDefinition() const {
-	return "{\n\t\"model\" : \"path/to/model.md3\"\n\t\"anim <name> <start_frame> <end_frame>\"\n}\n";
+	return "{\n\t\"model\" : \"path/to/model.md3\"\n\t\"anim <name> <start_frame> <end_frame> <fps>\"\n}\n";
 }
 
 /*
@@ -75,6 +76,9 @@ bool dnDeclVertexAnim::Parse(const char* text, const int textLength) {
 
 			src.ReadToken(&token); // Read end frame
 			anim.Set("end_frame", token);
+
+			src.ReadToken(&token); // Read end frame
+			anim.Set("fps", token);
 
 			anims.Append(anim);
 		}
@@ -171,14 +175,21 @@ dnVertexAnimator::PlayAnim
 =====================
 */
 void dnVertexAnimator::PlayAnim(const char* animName, bool loop) {
+
+	//Dynamix Test - tag names
+	//for (int i = 0; i < 8; i++) {
+	//common->DPrintf("Tag name test %s\n", renderModel->GetJointName((jointHandle_t)i));
+	//}
+
 	currentAnim = vertexAnim->FindAnim(animName);
 	if (currentAnim == nullptr) {
 		common->Warning("Failed to find vertex animation %s\n", animName);
 		return;
 	}
 
-	if (isLooping && loop && currentAnimName == animName)
+	if (isLooping && loop && currentAnimName == animName) {
 		return;
+	}
 
 	currentAnimName = animName;
 
@@ -188,6 +199,7 @@ void dnVertexAnimator::PlayAnim(const char* animName, bool loop) {
 	isLooping = loop;
 	start_frame = currentFrame = currentAnim->GetInt("start_frame");
 	end_frame = currentAnim->GetInt("end_frame");
+	fps = currentAnim->GetFloat("fps");
 }
 
 /*
@@ -198,7 +210,7 @@ dnVertexAnimator::Update
 
 void dnVertexAnimator::Update(void) {
 	if (vertexAnim == nullptr || currentAnim == nullptr) {
-		gameLocal.DPrintf("TestingANimator broken");
+		gameLocal.Error("Testing Animator broken");
 		return;
 	}
 
@@ -208,29 +220,54 @@ void dnVertexAnimator::Update(void) {
 	lastTime = currentTime;
 	float deltaTimeSeconds = deltaTime / 1000.0f;
 
+
 	// Calculate the total animation duration in seconds
-	float animSpeed = 24.0f;
-	int frameCount = end_frame - start_frame;
-	float animDuration = frameCount / animSpeed;
+	//float animSpeed = 24.0f;
+	float animSpeed = fps;
+	//int frameCount = end_frame - start_frame;
+	//float animDuration = frameCount / animSpeed;
 
 	// Update the current frame based on the elapsed time
 	float framesAdvanced = deltaTimeSeconds * animSpeed;
-	lastFrame = currentFrame;
+	//lastFrame = currentFrame;
 	currentFrame += deltaTimeSeconds * animSpeed;
+	lerpFrame = currentFrame + 1;
+	//gameLocal.Printf("Current frame %f, testint %d\n", currentFrame, testint);
+	lastFrame = lerpFrame - 1;
+
 
 	// Handle looping or clamping to end_frame
 	if (currentFrame >= end_frame) {
 		if (isLooping) {
-			currentFrame = start_frame;			
+			currentFrame = start_frame;	
+			lerpFrame = start_frame;
 		}
 		else {
 			currentFrame = end_frame;
+			lerpFrame = end_frame;
+			lastFrame = end_frame;
 		}		
 	}
 
-	// Calculate the backlerp value
+	if (lastFrame <= start_frame) {
+		lastFrame = start_frame;
+	}
+
+	//// Calculate the backlerp value
 	float frameFraction = fmod(framesAdvanced, 1.0f);
-	backlerp = 1.0f - frameFraction;
+	backlerp = lerpFrame - currentFrame;
+	//backlerp = 1.0f - frontlerp;
+//	backlerp = 1.0f - deltaTimeSeconds;
+	//backlerp = 0.5f;
+	////gameLocal.Printf("Backlerp animator: %f\n", backlerp);
+
+	//Dynamix backlerp value
+	//int oldFrame = (int)(currentFrame);
+	//int newFrame = oldFrame + 1;
+
+	//float frontlerp = currentFrame - oldFrame;
+	//backlerp = 1.0f - frontlerp;
+	//gameLocal.Printf("Backlerp animator: %f\n", backlerp);
 }
 
 /*
@@ -242,7 +279,6 @@ bool dnVertexAnimator::IsAnimDone(void) {
 	if (isLooping) {
 		return false;
 	}
-
 	return currentFrame >= end_frame;
 }
 
@@ -251,29 +287,46 @@ bool dnVertexAnimator::IsAnimDone(void) {
 dnVertexAnimator::ClearAllAnims
 =====================
 */
-void dnVertexAnimator::ClearAllAnims(void) {
+void dnVertexAnimator::ClearAllAnims(void)  {
 	currentAnim = nullptr;
 }
 
-/* FIXME Dynamix - engine side
+#ifdef _CENG
+/*
 =====================
 dnVertexAnimator::GetJointHandle
 =====================
+*/
 
 jointHandle_t dnVertexAnimator::GetJointHandle(const char* name) {
+	//return INVALID_JOINT;
+	
 	if (renderModel == nullptr)
 		return INVALID_JOINT;
 
-	return renderModel->FindTag(name);
+	return renderModel->GetJointHandle( name );
+	
 }
-*/
 
-/* FIXME Dynamix - engine side
+/*
 =====================
 dnVertexAnimator::GetJointTransform
 =====================
+*/
 
 bool dnVertexAnimator::GetJointTransform(jointHandle_t jointHandle, idVec3& offset, idMat3& axis) {
+	const idJointQuat *pose;
+
+	pose = GetDefaultPose();
+	offset.Zero();
+	axis.Identity();
+
+	offset = pose[jointHandle].t;
+	axis = pose[jointHandle].q.ToMat3();
+
+	return true;
+	
+	/*
 	offset.Zero();
 	axis.Identity();
 
@@ -291,5 +344,15 @@ bool dnVertexAnimator::GetJointTransform(jointHandle_t jointHandle, idVec3& offs
 	axis = idMat3(tag->axis[0], tag->axis[1], tag->axis[2]);
 
 	return true;
-}
 	*/
+}
+
+/*
+=====================
+idDeclModelDef::GetDefaultPose
+=====================
+*/
+const idJointQuat *dnVertexAnimator::GetDefaultPose( void ) const {
+	return renderModel->GetDefaultPose();
+}
+#endif
