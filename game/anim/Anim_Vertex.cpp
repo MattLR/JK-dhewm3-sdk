@@ -176,10 +176,10 @@ dnVertexAnimator::PlayAnim
 */
 void dnVertexAnimator::PlayAnim(const char* animName, bool loop) {
 
-	//Dynamix Test
-	for (int i = 0; i < 8; i++) {
-	common->DPrintf("Tag name test %s\n", renderModel->GetJointName((jointHandle_t)i));
-	}
+	//Dynamix Test - tag names
+	//for (int i = 0; i < 8; i++) {
+	//common->DPrintf("Tag name test %s\n", renderModel->GetJointName((jointHandle_t)i));
+	//}
 
 	currentAnim = vertexAnim->FindAnim(animName);
 	if (currentAnim == nullptr) {
@@ -199,7 +199,7 @@ void dnVertexAnimator::PlayAnim(const char* animName, bool loop) {
 	isLooping = loop;
 	start_frame = currentFrame = currentAnim->GetInt("start_frame");
 	end_frame = currentAnim->GetInt("end_frame");
-	fps  = currentAnim->GetFloat("fps");
+	fps = currentAnim->GetFloat("fps");
 }
 
 /*
@@ -238,14 +238,19 @@ void dnVertexAnimator::Update(void) {
 
 	// Handle looping or clamping to end_frame
 	if (currentFrame >= end_frame) {
-		//if (isLooping) {
-		if (0) {
+		if (isLooping) {
 			currentFrame = start_frame;	
-
+			lerpFrame = start_frame;
 		}
 		else {
 			currentFrame = end_frame;
+			lerpFrame = end_frame;
+			lastFrame = end_frame;
 		}		
+	}
+
+	if (lastFrame <= start_frame) {
+		lastFrame = start_frame;
 	}
 
 	//// Calculate the backlerp value
@@ -274,7 +279,6 @@ bool dnVertexAnimator::IsAnimDone(void) {
 	if (isLooping) {
 		return false;
 	}
-
 	return currentFrame >= end_frame;
 }
 
@@ -283,7 +287,7 @@ bool dnVertexAnimator::IsAnimDone(void) {
 dnVertexAnimator::ClearAllAnims
 =====================
 */
-void dnVertexAnimator::ClearAllAnims(void) {
+void dnVertexAnimator::ClearAllAnims(void)  {
 	currentAnim = nullptr;
 }
 

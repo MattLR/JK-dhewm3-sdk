@@ -1438,8 +1438,14 @@ void idAnimated::Event_LaunchMissiles( const char *projectilename, const char *s
 ===============================================================================
 */
 
+//Dynamix - Move these to entity?
+const idEventDef EV_SetFirstPerson( "setFirstPerson", NULL );
+const idEventDef EV_SetThirdPerson( "setThirdPerson", NULL );
+
 CLASS_DECLARATION( idEntity, idStaticEntity )
 	EVENT( EV_Activate,				idStaticEntity::Event_Activate )
+	EVENT( EV_SetFirstPerson,		idStaticEntity::Event_SetFirstPerson )
+	EVENT( EV_SetThirdPerson,		idStaticEntity::Event_SetThirdPerson )
 END_CLASS
 
 /*
@@ -1684,6 +1690,26 @@ void idStaticEntity::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 	if ( msg.HasChanged() ) {
 		UpdateVisuals();
 	}
+}
+
+/*
+================
+idStaticEntity::Event_SetFirstPerson
+================
+*/
+void idStaticEntity::Event_SetFirstPerson( void ) {
+	renderEntity.allowSurfaceInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+	renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+}
+
+/*
+================
+idStaticEntity::Event_SetThirdPerson
+================
+*/
+void idStaticEntity::Event_SetThirdPerson( void ) {
+	renderEntity.suppressSurfaceInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+	renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
 }
 
 
@@ -3273,6 +3299,7 @@ const idEventDef EV_GetJointHandle( "getJointHandle", "s", 'd' );
 const idEventDef EV_GetJointPos( "getJointPos", "d", 'v' );
 const idEventDef EV_GetJointAngle( "getJointAngle", "d", 'v' );
 const idEventDef EV_SuppressView( "suppressView", "e");
+const idEventDef EV_AnimDoneVert( "animDoneV", NULL, 'd');
 
 CLASS_DECLARATION( idStaticEntity, idAnimatedVertex )
 	EVENT( EV_SetAnimation,			idAnimatedVertex::Event_SetAnimation )
@@ -3280,6 +3307,7 @@ CLASS_DECLARATION( idStaticEntity, idAnimatedVertex )
 	EVENT( EV_GetJointPos,			idAnimatedVertex::Event_GetJointPos )
 	EVENT( EV_GetJointAngle,		idAnimatedVertex::Event_GetJointAngle )
 	EVENT( EV_SuppressView,			idAnimatedVertex::Event_SuppressView )
+	EVENT( EV_AnimDoneVert,			idAnimatedVertex::Event_AnimDone )
 END_CLASS
 
 idAnimatedVertex::idAnimatedVertex () {
@@ -3291,8 +3319,8 @@ void idAnimatedVertex::Spawn ( void ) {
 
 	//This works, make an event and move to func_static?
 	// Or add a spawn arg is Weapon and just do it here or in func_static ?
-	renderEntity.allowSurfaceInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
-	renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+	//renderEntity.allowSurfaceInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+	//renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
 
 	animator.PlayAnim("all", true);
 	BecomeActive( TH_THINK );
@@ -3325,7 +3353,7 @@ idAnimatedVertex::Event_SetAnimation
 void idAnimatedVertex::Event_SetAnimation( const char *animName ) {
 
 	//Dynamix, this will all get changed later but it works well enough for now
-	 animator.PlayAnim( animName, 1 );
+	 animator.PlayAnim( animName, 0 );
 
 }
 
@@ -3404,4 +3432,16 @@ void idAnimatedVertex::Event_SuppressView( idEntity *owner ) {
 		renderEntity.allowSurfaceInViewID = owner->entityNumber+1;
 
 }
+/*=====================
+idAnimatedVertex::Event_AnimDone
+=====================
+*/
+void idAnimatedVertex::Event_AnimDone( void ) {
+	if ( animator.IsAnimDone()) {
+		idThread::ReturnInt( true );
+	} else {
+		idThread::ReturnInt( false );
+	}
+}
+
 

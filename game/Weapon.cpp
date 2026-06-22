@@ -756,6 +756,7 @@ idWeapon::InitWorldModel
 */
 void idWeapon::InitWorldModel( const idDeclEntityDef *def ) {
 	idEntity *ent;
+	const char *attach = NULL;
 
 	ent = worldModel.GetEntity();
 
@@ -763,7 +764,11 @@ void idWeapon::InitWorldModel( const idDeclEntityDef *def ) {
 	assert( def );
 
 	const char *model = def->dict.GetString( "model_world" );
-	const char *attach = def->dict.GetString( "joint_attach" );
+	//Dynamix - check for rtcw joint first
+	attach = def->dict.GetString( "joint_attach_rtcw" );
+	if ( *attach == '\0' ) {
+		attach = def->dict.GetString( "joint_attach" );
+	}
 
 	ent->SetSkin( NULL );
 	if ( model[0] && attach[0] ) {

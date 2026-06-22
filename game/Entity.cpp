@@ -3602,6 +3602,26 @@ bool idEntity::HandleGuiCommands( idEntity *entityGui, const char *cmds ) {
 				continue;
 			}
 
+			if ( !token.Icmp( "exec" ) ) {
+				idStr cmd;
+
+				while ( src.ReadToken( &token2 ) ) {
+					if ( token2 == ";" ) {
+						src.UnreadToken( &token2 );
+						break;
+					}
+
+					if ( !cmd.IsEmpty() ) {
+						cmd += " ";
+					}
+
+					cmd += token2.c_str();
+					}
+
+				cmdSystem->BufferCommandText( CMD_EXEC_APPEND, cmd.c_str() );
+				continue;
+			}
+
 			// if we get to this point we don't know how to handle it
 			src.UnreadToken(&token);
 			if ( !HandleSingleGuiCommand( entityGui, &src ) ) {

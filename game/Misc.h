@@ -337,6 +337,9 @@ public:
 
 private:
 	void				Event_Activate( idEntity *activator );
+	//Dynamix
+	void				Event_SetFirstPerson( void );
+	void				Event_SetThirdPerson( void );
 
 	int					spawnTime;
 	bool				active;
@@ -812,6 +815,7 @@ private:
 	void				Event_GetJointPos( jointHandle_t jointnum );
 	void				Event_GetJointAngle( jointHandle_t jointnum );
 	void				Event_SuppressView( idEntity *owner );
+	void				Event_AnimDone( void );
 };
 
 #endif /* !__GAME_MISC_H__ */
