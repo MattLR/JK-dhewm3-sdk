@@ -2663,7 +2663,7 @@ bool idDeclModelDef::Parse( const char *text, const int textLength ) {
 			}
 			filename = token2;
 			filename.ExtractFileExtension( extension );
-			if ( extension != MD5_MESH_EXT ) {
+			if ( extension != MD5_MESH_EXT && extension != "glm") {
 				src.Warning( "Invalid model for MD5 mesh" );
 				MakeDefault();
 				return false;

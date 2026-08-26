@@ -909,6 +909,7 @@ void idMD5Anim::CheckModelHierarchy( const idRenderModel *model ) const {
 			parent = -1;
 		}
 		if ( parent != jointInfo[ i ].parentNum ) {
+			gameLocal.DPrintf("Broken joint #%d ", i);
 			gameLocal.Error( "Model '%s' has different joint hierarchy than anim '%s'", model->Name(), name.c_str() );
 		}
 	}

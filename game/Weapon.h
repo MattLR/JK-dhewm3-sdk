@@ -121,6 +121,8 @@ public:
 	idEntity *				DropItem( const idVec3 &velocity, int activateDelay, int removeDelay, bool died );
 	bool					CanDrop( void ) const;
 	void					WeaponStolen( void );
+	// Dynamix
+	void					RebindWorldModel( void );
 
 	// Script state management
 	virtual idThread *		ConstructScriptObject( void );
@@ -370,7 +372,10 @@ private:
 	void					Event_SetLightParm( int parmnum, float value );
 	void					Event_SetLightParms( float parm0, float parm1, float parm2, float parm3 );
 	void					Event_LaunchProjectiles( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower );
+	//Dynamix
 	void					Event_LaunchProjectiles_Alt( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower );
+	void 					Event_LaunchProjectilesPattern( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower, int pattern, int defNum );
+
 	void					Event_CreateProjectile( void );
 	void					Event_EjectBrass( void );
 	void					Event_Melee( void );
@@ -383,6 +388,13 @@ private:
 
 	void					Event_StartAutoMelee( float dmgMult, int trailNum );
 	void					Event_StopAutoMelee( void );
+	void					Event_DetonateStuff( void );
+	void					Event_ToggleZoom( void );
+	void					Event_IncrementZoom( void );
+	void					Event_SetZoomGuiParm( const char *key, const char *val );
+	// Make bool?
+	void					Event_ReturnSaber( void );
+	void					Event_ForceAvailable( void );
 };
 
 ID_INLINE bool idWeapon::IsLinked( void ) {

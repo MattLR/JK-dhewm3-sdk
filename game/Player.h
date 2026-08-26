@@ -59,6 +59,10 @@ extern const idEventDef EV_Player_DisableWeapon;
 extern const idEventDef EV_Player_ExitTeleporter;
 extern const idEventDef EV_Player_SelectWeapon;
 extern const idEventDef EV_SpectatorTouch;
+//Dynamix
+extern const idEventDef EV_Player_EndRage;
+extern const idEventDef EV_Player_EndDisable;
+
 
 const float THIRD_PERSON_FOCUS_DISTANCE	= 512.0f;
 const int	LAND_DEFLECT_TIME = 150;
@@ -104,6 +108,8 @@ struct statusEffect {
 	int type;
 	float power;
 	int endTime;
+	int tickInterval;
+	int tickTime;
 };
 
 // powerups - the "type" in item .def must match
@@ -131,13 +137,25 @@ enum {
 	INFLUENCE_LEVEL3,			// slow player movement
 };
 
+// Dynamix weapon toggles 
+typedef struct {
+	char		name[64];
+	idList<int>	toggleList;
+} WeaponToggle_t;
+
 // force power modifiers
+// Replace this with something more sensible, I don't like how I'm doing this
+// Just make them generic speed damage damage reduction and sum it all?
 enum {
 	FORCESPEED = 0,			// none
 	PROTECT,			// 
 	ABSORB,			// 
-	RAGE,			// 
+	RAGESPEED,			// 
 	SENSE,			// 
+	RAGEDAMAGE,
+	RAGEDAMAGEREDUCTION,
+	RAGEDOT,
+	HEAL,
 };
 
 class idInventory {
@@ -243,6 +261,9 @@ public:
 
 	bool					noclip;
 	bool					godmode;
+	//Dynamix
+	bool					rageActive;
+	bool					toggleZoom;
 
 	bool					spawnAnglesSet;		// on first usercmd, we must set deltaAngles
 	idAngles				spawnAngles;
@@ -278,6 +299,15 @@ public:
 	idScriptBool			AI_TELEPORT;
 	idScriptBool			AI_TURN_LEFT;
 	idScriptBool			AI_TURN_RIGHT;
+	//Dynamix
+	idScriptBool			AI_DRAIN;
+	idScriptBool			AI_HEAL;
+	idScriptBool			AI_LIGHTNING;
+	idScriptBool			AI_RAGE;
+	idScriptFloat			AI_DISABLED_TIME;
+	idScriptBool			AI_TOGGLE_ZOOMED;
+	idScriptBool			AI_SABER_THROWN;
+
 
 	// inventory
 	idInventory				inventory;
@@ -285,8 +315,8 @@ public:
 	idEntityPtr<idWeapon>	weapon;
 	idEntityPtr<idAnimatedEntity>	weaponWorldModel;
 	idEntityPtr<jkSimpleForcePower>	forcePower;
-	idEntityPtr<jkFP>	forcePower2;
-	const idDeclEntityDef*			forceDef;
+	//idEntityPtr<jkFP>		forcePower2;
+	const idDeclEntityDef*	forceDef;
 	int						forceLevels[16];
 
 	//Force stuff Dynamix
@@ -296,7 +326,10 @@ public:
 	idUserInterface *		hud;				// MP: is NULL if not local player
 	idUserInterface *		zoomGui;
 	idUserInterface *		objectiveSystem;
+	idUserInterface *		devMenu;
 	bool					objectiveSystemOpen;
+	bool					devMenuOpen;
+
 
 	int						weapon_soulcube;
 	int						weapon_pda;
@@ -311,7 +344,7 @@ public:
 	bool					doingDeathSkin;
 	int						lastArmorPulse;		// lastDmgTime if we had armor at time of hit
 	float					stamina;
-	float					forcePool;			//Dynamix, available force points
+	float					forcePool;			// Dynamix, available force points
 	float					healthPool;			// amount of health to give over time
 	int						nextHealthPulse;
 	bool					healthPulse;
@@ -321,6 +354,9 @@ public:
 
 	bool					hiddenWeapon;		// if the weapon is hidden ( in noWeapons maps )
 	idEntityPtr<idProjectile> soulCubeProjectile;
+	// Dynamix - thrown/dropped saber tracking stuff
+	idEntityPtr<jkSaberProjectile> saberProjectile;
+
 
 	// mp stuff
 	static idVec3			colorBarTable[ 5 ];
@@ -441,7 +477,7 @@ public:
 	void					CalculateViewWeaponPos( idVec3 &origin, idMat3 &axis );
 	idVec3					GetEyePosition( void ) const;
 	void					GetViewPos( idVec3 &origin, idMat3 &axis ) const;
-	void					OffsetThirdPersonVehicleView( bool clip); //Dynamix
+	void					OffsetThirdPersonVehicleView( bool clip); // Dynamix
 	void					OffsetThirdPersonView( float angle, float range, float height, bool clip );
 
 
@@ -506,6 +542,7 @@ public:
 	void					Spectate( bool spectate );
 	void					TogglePDA( void );
 	void					ToggleScoreboard( void );
+	void					ToggleDevMenu( void ); // Dynamix
 	void					RouteGuiMouse( idUserInterface *gui );
 	void					UpdateHud( void );
 	const idDeclPDA *		GetPDA( void ) const;
@@ -582,6 +619,18 @@ public:
 	int						HasAmmo( int amount, int alignment );
 	bool					inVehicle;
 	void 					UpdateModel( void );
+	int						GetForceLevel( int forcePower );
+	bool					SetForceLevel( int forcePower, int level );
+	void					AddDetPack( idEntity* detPack );
+	void					RemoveDetPack( idEntity* detPack );
+	void					DetonateStuff( void );
+	void					HandleZoom( void );
+	void 					ToggleZoom( void );
+	void					SetSaberProjectile( idProjectile *projectile );
+	void					RebindWorldModel( void );
+
+
+
 
 private:
 	float					vehicleCameraDist;
@@ -687,6 +736,12 @@ private:
 	idVec3					smoothedOrigin;
 	idAngles				smoothedAngles;
 
+	//Dynamix - for detpacks and other owned entities in the world, check if there's a helper function later
+	//Might be better to use entityPtr, I don't know enough about it
+	idList<idEntity*>		detPacks;
+	// Dynamix weapon toggles
+	idHashTable<WeaponToggle_t>	weaponToggles;
+
 	// mp
 	bool					ready;					// from userInfo
 	bool					respawning;				// set to true while in SpawnToPoint for telefrag checks
@@ -778,11 +833,21 @@ private:
 	//void					Event_DisableForcePower( void );
 	void					Event_EnableForceRegen( void );
 	void					Event_DisableForceRegen( void );
-	//Dynamix hud carousel stuff
+	// Dynamix hud carousel stuff
 	void					Event_HideForceIcons( void );
 	void					Event_ShowForceIcons( void );
 	void					Event_HideWeaponIcons( void );
 	void					Event_ShowWeaponIcons( void );
+	void					Event_EndRage( void );
+	void					Event_EndDisable( void );
+	void					Event_GiveArmor( int amount );
+	void					Event_SetArmor( int amount );
+	void					Event_GiveHealth( int amount );
+	void					Event_GiveAmmo( int type, int amount );
+	void					Event_IncrementZoom( float amount );
+	void					Event_SaberReturned( void );
+	void					Event_GetSaberProjectile( void );
+
 };
 
 ID_INLINE bool idPlayer::IsReady( void ) {

@@ -300,6 +300,8 @@ CLASS_DECLARATION( idActor, idAI )
 	EVENT( AI_GetReachableEntityPosition,		idAI::Event_GetReachableEntityPosition )
 	//Dynamix
 	EVENT( AI_EndMindTrick,						idAI::Event_EndMindTrick )
+	EVENT( EV_Use,								idAI::Event_Use )
+
 END_CLASS
 
 /*
@@ -2722,7 +2724,30 @@ idAI::Event_EndMindTrick
 */
 void idAI::Event_EndMindTrick( void ) {
 	gameLocal.DPrintf ("EndMindTrick\n");
+	StopEmitter("trickEmit");
 	spawnArgs.GetInt(	"team",					"1",		team );
 	spawnArgs.GetInt(	"rank",					"0",		rank );
 	return;
+}
+
+/*
+================
+idAI::Event_Use
+================
+*/
+void idAI::Event_Use( idEntity *activator ) {
+	const function_t	*func;
+	idThread			*thread;
+	const char			*funcName;
+
+	funcName = "doInteraction";
+	// Calling scriptobject function directly, I'm sure there's another way that makes more sense
+	func = scriptObject.GetFunction( funcName );
+	if ( !func ) {
+		return;
+	}
+
+	thread = new idThread();
+	thread->CallFunction( this, func, true );
+	thread->Start();
 }

@@ -91,6 +91,7 @@ extern idCVar	g_timeentities;
 extern idCVar	ai_debugScript;
 extern idCVar	ai_debugMove;
 extern idCVar	ai_debugTrajectory;
+extern idCVar	ai_freeze;
 extern idCVar	ai_testPredictPath;
 extern idCVar	ai_showCombatNodes;
 extern idCVar	ai_showPaths;

@@ -106,6 +106,16 @@ const idEventDef EV_Player_HideForceIcons( "hideForceIcons" );
 const idEventDef EV_Player_ShowForceIcons( "showForceIcons" );
 const idEventDef EV_Player_HideWeaponIcons( "hideWeaponIcons" );
 const idEventDef EV_Player_ShowWeaponIcons( "showWeaponIcons" );
+const idEventDef EV_Player_EndRage( "endRage" );
+const idEventDef EV_Player_EndDisable( "endDisable" );
+const idEventDef EV_Player_GiveArmor( "giveArmor", "d" ); // move to advanced actor
+const idEventDef EV_Player_SetArmor( "setArmor", "d" ); // move to advanced actor
+const idEventDef EV_Player_GiveHealth( "giveHealth", "d" ); // move to actor
+const idEventDef EV_Player_GiveAmmo( "giveAmmo", "dd" ); // move to actor
+const idEventDef EV_Player_SaberReturned( "saberReturned" ); // advanced actor later
+const idEventDef EV_Player_GetSaberProjectile( "getSaberEnt", NULL, 'e' ); // advanced actor later
+
+
 
 CLASS_DECLARATION( idActor, idPlayer )
 	EVENT( EV_Player_GetButtons,			idPlayer::Event_GetButtons )
@@ -134,9 +144,15 @@ CLASS_DECLARATION( idActor, idPlayer )
 	EVENT( EV_Player_HideForceIcons,		idPlayer::Event_HideForceIcons )	
 	EVENT( EV_Player_ShowForceIcons,		idPlayer::Event_ShowForceIcons )	
 	EVENT( EV_Player_HideWeaponIcons,		idPlayer::Event_HideWeaponIcons )	
-	EVENT( EV_Player_ShowWeaponIcons,		idPlayer::Event_ShowWeaponIcons )	
-
-
+	EVENT( EV_Player_ShowWeaponIcons,		idPlayer::Event_ShowWeaponIcons )
+	EVENT( EV_Player_EndRage,				idPlayer::Event_EndRage )
+	EVENT( EV_Player_EndDisable,			idPlayer::Event_EndDisable )
+	EVENT( EV_Player_GiveArmor,				idPlayer::Event_GiveArmor )
+	EVENT( EV_Player_SetArmor,				idPlayer::Event_SetArmor )
+	EVENT( EV_Player_GiveHealth,			idPlayer::Event_GiveHealth )
+	EVENT( EV_Player_GiveAmmo,				idPlayer::Event_GiveAmmo )
+	EVENT( EV_Player_SaberReturned,			idPlayer::Event_SaberReturned )
+	EVENT( EV_Player_GetSaberProjectile,	idPlayer::Event_GetSaberProjectile )
 END_CLASS
 
 const int MAX_RESPAWN_TIME = 10000;
@@ -457,6 +473,7 @@ void idInventory::Save( idSaveGame *savefile ) const {
 
 	savefile->WriteInt( maxHealth );
 	savefile->WriteInt( weapons );
+	savefile->WriteInt( forcePowers );
 	savefile->WriteInt( powerups );
 	savefile->WriteInt( armor );
 	savefile->WriteInt( maxarmor );
@@ -553,6 +570,7 @@ void idInventory::Restore( idRestoreGame *savefile ) {
 
 	savefile->ReadInt( maxHealth );
 	savefile->ReadInt( weapons );
+	savefile->ReadInt( forcePowers );
 	savefile->ReadInt( powerups );
 	savefile->ReadInt( armor );
 	savefile->ReadInt( maxarmor );
@@ -1039,6 +1057,8 @@ idPlayer::idPlayer() {
 
 	noclip					= false;
 	godmode					= false;
+	// Dynamix
+	rageActive				= false;
 
 	spawnAnglesSet			= false;
 	spawnAngles				= ang_zero;
@@ -1056,7 +1076,6 @@ idPlayer::idPlayer() {
 	weapon					= NULL;
 
 	hud						= NULL;
-	zoomGui					= NULL;
 	objectiveSystem			= NULL;
 	objectiveSystemOpen		= false;
 
@@ -1256,6 +1275,14 @@ void idPlayer::LinkScriptVariables( void ) {
 	AI_TELEPORT.LinkTo(			scriptObject, "AI_TELEPORT" );
 	AI_TURN_LEFT.LinkTo(		scriptObject, "AI_TURN_LEFT" );
 	AI_TURN_RIGHT.LinkTo(		scriptObject, "AI_TURN_RIGHT" );
+	// Dynamix
+	AI_DISABLED_TIME.LinkTo(	scriptObject, "AI_DISABLED_TIME" );
+	AI_DRAIN.LinkTo(			scriptObject, "AI_DRAIN" );
+	AI_LIGHTNING.LinkTo(		scriptObject, "AI_LIGHTNING" );
+	AI_HEAL.LinkTo(				scriptObject, "AI_HEAL" );
+	AI_RAGE.LinkTo(				scriptObject, "AI_RAGE" );
+	AI_TOGGLE_ZOOMED.LinkTo(	scriptObject, "AI_TOGGLE_ZOOMED" );
+	AI_SABER_THROWN.LinkTo(		scriptObject, "AI_SABER_THROWN" );
 }
 
 /*
@@ -1403,6 +1430,9 @@ void idPlayer::Init( void ) {
 
 	noclip					= false;
 	godmode					= false;
+	// Dynamix
+	rageActive				= false;
+	toggleZoom				= false;
 	zoomed 					= false;
 
 	oldButtons				= 0;
@@ -1587,6 +1617,9 @@ void idPlayer::Init( void ) {
 	AI_TELEPORT		= false;
 	AI_TURN_LEFT	= false;
 	AI_TURN_RIGHT	= false;
+	// Dynamix
+	AI_TOGGLE_ZOOMED	= false;
+	AI_SABER_THROWN = false;
 
 	// reset the script object
 	ConstructScriptObject();
@@ -1667,14 +1700,8 @@ void idPlayer::Spawn( void ) {
 		// load HUD
 		if ( gameLocal.isMultiplayer ) {
 			hud = uiManager->FindGui( "guis/mphud.gui", true, false, true );
-			//zoomGui  = uiManager->FindGui( "guis/railgun_scope.gui", true, false, true );
-			zoomGui = weapon.GetEntity()->GetZoomGui();
-			//zoomGui  = uiManager->FindGui ( (weapon.GetEntity()->spawnArgs.GetString(( "gui_zoom", "" ))), true );
-			//zoomGui  = uiManager->FindGui ( spawnArgs.GetString ( "gui_zoom", "" ), true );
 		} else if ( spawnArgs.GetString( "hud", "", temp ) ) {
 			hud = uiManager->FindGui( temp, true, false, true );
-			zoomGui  = uiManager->FindGui( "guis/railgun_scope.gui", true, false, true );
-			//zoomGui  = uiManager->FindGui ( (weapon.GetEntity()->spawnArgs.GetString(( "gui_zoom", "" ))), true );
 		}
 		if ( hud ) {
 			hud->Activate( true, gameLocal.time );
@@ -1688,8 +1715,11 @@ void idPlayer::Spawn( void ) {
 			cursor->Activate( true, gameLocal.time );
 		}
 
-		objectiveSystem = uiManager->FindGui( "guis/pda.gui", true, false, true );
+		objectiveSystem = uiManager->FindGui( "guis/jadatapad.gui", true, false, true );
 		objectiveSystemOpen = false;
+
+		devMenu = uiManager->FindGui( "guis/devmenu.gui", true, false, true );
+		devMenuOpen = false;
 	}
 
 	SetLastHitTime( 0 );
@@ -1813,6 +1843,34 @@ void idPlayer::Spawn( void ) {
 			}
 		}
 	}
+
+	// Dynamix - moved over from d3xp for faux slot based weapons
+	//Setup the weapon toggle lists
+	const idKeyValue *kv;
+	kv = spawnArgs.MatchPrefix( "weapontoggle", NULL );
+	while( kv ) {
+		WeaponToggle_t newToggle;
+		strcpy(newToggle.name, kv->GetKey().c_str());
+
+		idStr toggleData = kv->GetValue();
+
+		idLexer src;
+		idToken token;
+		src.LoadMemory(toggleData, toggleData.Length(), "toggleData");
+		while(1) {
+			if(!src.ReadToken(&token)) {
+				break;
+			}
+			int index = atoi(token.c_str());
+			newToggle.toggleList.Append(index);
+
+			//Skip the ,
+			src.ReadToken(&token);
+		}
+		weaponToggles.Set(newToggle.name, newToggle);
+
+		kv = spawnArgs.MatchPrefix( "weapontoggle", kv );
+	}
 }
 
 /*
@@ -1840,6 +1898,9 @@ void idPlayer::Save( idSaveGame *savefile ) const {
 
 	savefile->WriteBool( noclip );
 	savefile->WriteBool( godmode );
+	//Dynamix
+	savefile->WriteBool( rageActive );
+	savefile->WriteBool( toggleZoom );
 
 	// don't save spawnAnglesSet, since we'll have to reset them after loading the savegame
 	savefile->WriteAngles( spawnAngles );
@@ -1858,6 +1919,7 @@ void idPlayer::Save( idSaveGame *savefile ) const {
 
 	inventory.Save( savefile );
 	weapon.Save( savefile );
+	forcePower.Save( savefile );
 
 	savefile->WriteUserInterface( hud, false );
 	savefile->WriteUserInterface( objectiveSystem, false );
@@ -1881,6 +1943,7 @@ void idPlayer::Save( idSaveGame *savefile ) const {
 	savefile->WriteBool( doingDeathSkin );
 	savefile->WriteInt( lastArmorPulse );
 	savefile->WriteFloat( stamina );
+	savefile->WriteFloat( forcePool );
 	savefile->WriteFloat( healthPool );
 	savefile->WriteInt( nextHealthPulse );
 	savefile->WriteBool( healthPulse );
@@ -1952,6 +2015,12 @@ void idPlayer::Save( idSaveGame *savefile ) const {
 	savefile->WriteInt( weaponSwitchTime );
 	savefile->WriteBool( weaponEnabled );
 	savefile->WriteBool( showWeaponViewModel );
+
+	savefile->WriteInt( currentForcePower );
+	savefile->WriteInt( idealForcePower );
+	savefile->WriteInt( previousForcePower );
+	savefile->WriteInt( forcePowerSwitchTime );
+	savefile->WriteBool( forcePowerEnabled );
 
 	savefile->WriteSkin( skin );
 	savefile->WriteSkin( powerUpSkin );
@@ -2036,6 +2105,17 @@ void idPlayer::Save( idSaveGame *savefile ) const {
 		hud->SetStateString( "message", common->GetLanguageDict()->GetString( "#str_02916" ) );
 		hud->HandleNamedEvent( "Message" );
 	}
+
+	// Dynamix weapon toggles
+	savefile->WriteInt(weaponToggles.Num());
+	for(i = 0; i < weaponToggles.Num(); i++) {
+		WeaponToggle_t* weaponToggle = weaponToggles.GetIndex(i);
+		savefile->WriteString(weaponToggle->name);
+		savefile->WriteInt(weaponToggle->toggleList.Num());
+		for(int j = 0; j < weaponToggle->toggleList.Num(); j++) {
+			savefile->WriteInt(weaponToggle->toggleList[j]);
+		}
+	}
 }
 
 /*
@@ -2053,6 +2133,9 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 
 	savefile->ReadBool( noclip );
 	savefile->ReadBool( godmode );
+	//Dynamix
+	savefile->ReadBool( rageActive );
+	savefile->ReadBool( toggleZoom );
 
 	savefile->ReadAngles( spawnAngles );
 	savefile->ReadAngles( viewAngles );
@@ -2078,6 +2161,7 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 
 	inventory.Restore( savefile );
 	weapon.Restore( savefile );
+	forcePower.Restore ( savefile );
 
 	for ( i = 0; i < inventory.emails.Num(); i++ ) {
 		GetPDA()->AddEmail( inventory.emails[i] );
@@ -2109,6 +2193,7 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 	savefile->ReadBool( doingDeathSkin );
 	savefile->ReadInt( lastArmorPulse );
 	savefile->ReadFloat( stamina );
+	savefile->ReadFloat( forcePool );
 	savefile->ReadFloat( healthPool );
 	savefile->ReadInt( nextHealthPulse );
 	savefile->ReadBool( healthPulse );
@@ -2184,6 +2269,12 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 	savefile->ReadInt( weaponSwitchTime );
 	savefile->ReadBool( weaponEnabled );
 	savefile->ReadBool( showWeaponViewModel );
+
+	savefile->ReadInt( currentForcePower );
+	savefile->ReadInt( idealForcePower );
+	savefile->ReadInt( previousForcePower );
+	savefile->ReadInt( forcePowerSwitchTime );
+	savefile->ReadBool( forcePowerEnabled );
 
 	savefile->ReadSkin( skin );
 	savefile->ReadSkin( powerUpSkin );
@@ -2284,6 +2375,27 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 
 	// create combat collision hull for exact collision detection
 	SetCombatModel();
+
+	// Dynamix weapon toggles
+	int weaponToggleCount;
+	savefile->ReadInt(weaponToggleCount);
+	for(i = 0; i < weaponToggleCount; i++) {
+		WeaponToggle_t newToggle;
+		memset(&newToggle, 0, sizeof(newToggle));
+
+		idStr name;
+		savefile->ReadString(name);
+		strcpy(newToggle.name, name.c_str());
+
+		int indexCount;
+		savefile->ReadInt(indexCount);
+		for(int j = 0; j < indexCount; j++) {
+			int temp;
+			savefile->ReadInt(temp);
+			newToggle.toggleList.Append(temp);
+		}
+		weaponToggles.Set(newToggle.name, newToggle);
+	}
 
 	// DG: workaround for lingering messages that are shown forever after loading a savegame
 	//     (one way to get them is saving again, while the message from first save is still
@@ -3182,6 +3294,11 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 		return;
 	}
 
+	if (zoomed && weapon.GetEntity()->GetZoomGui()) {
+		weapon.GetEntity()->GetZoomGui()->Redraw( gameLocal.time );
+		return;
+	}
+
 	UpdateHudStats( _hud );
 
 	_hud->SetStateString( "weapicon", weapon.GetEntity()->Icon() );
@@ -3195,11 +3312,7 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 	weapon.GetEntity()->UpdateGUI();
 
 	_hud->Redraw( gameLocal.realClientTime );
-	if (zoomed && weapon.GetEntity()->GetZoomGui()) {
-	weapon.GetEntity()->GetZoomGui()->Redraw( gameLocal.time );
-	//zoomGui->Activate(true, gameLocal.time);
-	//zoomGui->Redraw(gameLocal.time);
-	}
+
 
 	// weapon targeting crosshair
 	if ( !GuiActive() ) {
@@ -3283,7 +3396,7 @@ void idPlayer::UpdateConditions( void ) {
 	// minus the push velocity to avoid playing the walking animation and sounds when riding a mover
 	velocity = physicsObj.GetLinearVelocity() - physicsObj.GetPushedLinearVelocity();
 
-	if ( influenceActive ) {
+	if ( influenceActive || AI_DISABLED_TIME) {
 		AI_FORWARD		= false;
 		AI_BACKWARD		= false;
 		AI_STRAFE_LEFT	= false;
@@ -3909,11 +4022,54 @@ idPlayer::UpdateStatusEffects
 ==============
 */
 void idPlayer::UpdateStatusEffects( void ) {
+	// Loop through all our effects, then we want to check cancel conditions and do the effect
+	// if it isn't handled elsewhere - dots, hots, and force power draining
+	// Check cancels first by duration then by running/attacking
+	// I'll probably change this to be handled differently, it's a lot of checking against stuff awkwardly
+
 	for (int i = 0; i < statusEffects.Num(); i++) {
 		if (statusEffects[i].endTime < gameLocal.time) {
+			// This just seems like a mess now, should the bool rely on checking the list 
+			// rather than manually cancelling it?
+			if (statusEffects[i].type == HEAL) {
+				AI_HEAL = FALSE;
+			}
+
 			statusEffects.RemoveIndex(i);
 			//Dynamix temp for testing FIXME
 			hud->SetStateString( "activeForceBG", "" );
+			continue;
+		}
+
+		// Testing for effects that are cancelled by movement/attacking - might just be heal but need to check
+		if (statusEffects[i].type == HEAL) {
+			// Is there no player is moving check? Make one if not
+			if ( AI_FORWARD || AI_BACKWARD || AI_WEAPON_FIRED || AI_WEAPON_FIRED_ALT ) {
+			statusEffects.RemoveIndex(i);
+			AI_HEAL = FALSE;
+			continue;
+			}
+
+			if (statusEffects[i].tickTime <= gameLocal.time) {
+				health += statusEffects[i].power;
+				statusEffects[i].tickTime = statusEffects[i].tickTime + statusEffects[i].tickInterval;
+
+				if ( health > inventory.maxHealth ) {
+					health = inventory.maxHealth;
+					statusEffects.RemoveIndex(i);
+					AI_HEAL = FALSE;
+					continue;
+				}
+				continue;
+			}
+		}
+
+		if (statusEffects[i].type == RAGEDOT) {
+				if (statusEffects[i].tickTime <= gameLocal.time) {
+					Damage( NULL, NULL, idVec3( 0, 0, -1 ), "damage_softfall", 1.0f, 0 );
+					statusEffects[i].tickTime = statusEffects[i].tickTime + statusEffects[i].tickInterval;
+					continue;
+				}
 		}
 	}
 }
@@ -4391,6 +4547,49 @@ void idPlayer::SelectWeapon( int num, bool force ) {
 		return;
 	}
 
+	// Dynamix weapon toggles
+	//Is the weapon a toggle weapon
+	WeaponToggle_t* weaponToggle;
+	if(weaponToggles.Get(va("weapontoggle%d", num), &weaponToggle)) {
+
+		int weaponToggleIndex = 0;
+
+		//Find the current Weapon in the list
+		int currentIndex = -1;
+		for(int i = 0; i < weaponToggle->toggleList.Num(); i++) {
+			if(weaponToggle->toggleList[i] == idealWeapon) {
+				currentIndex = i;
+				break;
+			}
+		}
+		if(currentIndex == -1) {
+			//Didn't find the current weapon so select the first item
+			weaponToggleIndex = 0;
+		} else {
+			//Roll to the next available item in the list
+			weaponToggleIndex = currentIndex;
+			weaponToggleIndex++;
+			if(weaponToggleIndex >= weaponToggle->toggleList.Num()) {
+				weaponToggleIndex = 0;
+			}
+		}
+
+		for(int i = 0; i < weaponToggle->toggleList.Num(); i++) {
+
+			//Is it available
+			if(inventory.weapons & ( 1 << weaponToggle->toggleList[weaponToggleIndex])) {
+				break;
+			}
+
+			weaponToggleIndex++;
+			if(weaponToggleIndex >= weaponToggle->toggleList.Num()) {
+				weaponToggleIndex = 0;
+			}
+		}
+
+		num = weaponToggle->toggleList[weaponToggleIndex];
+	}
+
 	if ( force || ( inventory.weapons & ( 1 << num ) ) ) {
 		if ( !inventory.HasAmmo( weap ) && !spawnArgs.GetBool( va( "weapon%d_allowempty", num ) ) ) {
 			return;
@@ -4540,6 +4739,10 @@ idUserInterface *idPlayer::ActiveGui( void ) {
 		return objectiveSystem;
 	}
 
+	if ( devMenuOpen ) {
+		return devMenu;
+	}
+
 	return focusUI;
 }
 
@@ -4574,6 +4777,7 @@ void idPlayer::Weapon_Combat( void ) {
 
 			currentWeapon = idealWeapon;
 			weaponGone = false;
+
 			animPrefix = spawnArgs.GetString( va( "def_weapon%d", currentWeapon ) );
 			weapon.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ currentWeapon ] );
 			animPrefix.Strip( "weapon_" );
@@ -4672,7 +4876,7 @@ void idPlayer::Force_Combat( void ) {
 		AI_RELOAD = false;
 	}
 	*/
-
+	idStr entName;
 	if ( idealForcePower != currentForcePower ) {
 		if ( weaponCatchup ) {
 			assert( gameLocal.isClient );
@@ -4680,9 +4884,9 @@ void idPlayer::Force_Combat( void ) {
 			currentForcePower = idealForcePower;
 			weaponGone = false;
 			SetForcePower( idealForcePower );
-			animPrefix = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
-			forcePower.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ currentForcePower ] );
-			animPrefix.Strip( "weapon_" );
+			entName = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
+			forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ currentForcePower ] );
+			//animPrefix.Strip( "weapon_" );
 
 			forcePower.GetEntity()->NetCatchup();
 			const function_t *newstate = GetScriptFunction( "NetCatchup" );
@@ -4706,9 +4910,9 @@ void idPlayer::Force_Combat( void ) {
 				currentForcePower = idealForcePower;
 				weaponGone = false;
 				SetForcePower( idealForcePower );
-				animPrefix = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
-				forcePower.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ currentForcePower ] );
-				animPrefix.Strip( "weapon_" );
+				entName = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
+				forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ currentForcePower ] );
+				//animPrefix.Strip( "weapon_" );
 
 				forcePower.GetEntity()->Raise();
 			}
@@ -4944,8 +5148,8 @@ void idPlayer::UpdateForcePower( void ) {
 	// always make sure the weapon is correctly setup before accessing it
 	if ( !forcePower.GetEntity()->IsLinked() ) {
 		if ( idealForcePower != -1 ) {
-			animPrefix = spawnArgs.GetString( va( "def_fp%d", idealForcePower ) );
-			forcePower.GetEntity()->GetWeaponDef( animPrefix, inventory.clip[ idealForcePower ]);
+			idStr entName = spawnArgs.GetString( va( "def_fp%d", idealForcePower ) );
+			forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ idealForcePower ]);
 			SetForcePower( idealForcePower );
 			//forceCatchup = false;
 			assert( forcePower.GetEntity()->IsLinked() );
@@ -5778,7 +5982,7 @@ void idPlayer::UpdateViewAngles( void ) {
 	int i;
 	idAngles delta;
 
-	if ( !noclip && ( gameLocal.inCinematic || privateCameraView || gameLocal.GetCamera() || influenceActive == INFLUENCE_LEVEL2 || objectiveSystemOpen ) ) {
+	if ( !noclip && ( gameLocal.inCinematic || privateCameraView || gameLocal.GetCamera() || influenceActive == INFLUENCE_LEVEL2 || objectiveSystemOpen || devMenuOpen ) ) {
 		// no view changes at all, but we still want to update the deltas or else when
 		// we get out of this mode, our view will snap to a kind of random angle
 		UpdateDeltaViewAngles( viewAngles );
@@ -6382,6 +6586,15 @@ void idPlayer::ToggleScoreboard( void ) {
 
 /*
 ==============
+idPlayer::ToggleDevMenu
+==============
+*/
+void idPlayer::ToggleDevMenu( void ) {
+	devMenuOpen ^= 1;
+}
+
+/*
+==============
 idPlayer::Spectate
 ==============
 */
@@ -6478,10 +6691,25 @@ void idPlayer::UseVehicle( void ) {
 		// This should be a clip like they do in updatefocus in hindsight, if I'm doing that properly I should move those up to the player
 		// but I'll just redo all the stuff in here probaly
 		start = GetEyePosition();
-		end = start + viewAngles.ToForward() * 180.0f;
-		gameLocal.clip.TracePoint( trace, start, end, MASK_ALL, this );
+		end = start + viewAngles.ToForward() * 120.0f;
+		//gameLocal.clip.TracePoint( trace, start, end, MASK_ALL, this );
+
+		idBounds bounds = idBounds( idVec3( -4, -4, -4 ), idVec3( 4, 4, 4 ) );
+		gameLocal.clip.TraceBounds( trace, start, end, bounds, MASK_ALL, this );
 		if ( trace.fraction < 1.0f ) {
 			ent = gameLocal.entities[ trace.c.entityNum ];
+			if ( ent->RespondsTo( EV_Use ) || ent->HasSignal( SIG_USE ) ) {
+			ent->Signal( SIG_USE );
+			ent->ProcessEvent( &EV_Use, this );
+			} else if (ent && ent->IsType( jkVehicle::Type) ) {
+				ProcessEvent ( &AI_EnterVehicle, ent );
+			} else if ( ent && ent->IsType( idTrigger::Type) && (ent->spawnArgs.GetInt("spawnflags") & 4) ) {
+				ent->Signal( SIG_TRIGGER );
+				ent->ProcessEvent( &EV_Activate, gameLocal.GetLocalPlayer() );
+				ent->TriggerGuis();
+			}
+
+			/*
 			if ( ent && ent->IsType( jkRBVehicleTest::Type ) ) {
 				//Hide();
 				static_cast<jkRBVehicleTest*>(ent)->Use( this );
@@ -6495,6 +6723,7 @@ void idPlayer::UseVehicle( void ) {
 			} else if (ent && ent->IsType( idAI::Type) && focusCharacter) {
 				idAI *ai = dynamic_cast<idAI*>( ent );
 				// FIXME This doesn't seem like the right way to do any of this, need to look into it dynamix
+				// This isn't the right way to do this, can just send the signal and the AI can register it's own function
 
 				idStr objectType;
 				objectType = ai->scriptObject.GetTypeName();
@@ -6521,6 +6750,7 @@ void idPlayer::UseVehicle( void ) {
 				thread->CallFunction( ent, func, true );
 				thread->Start();
 			}
+			*/
 		}
 	}
 }
@@ -6625,7 +6855,7 @@ void idPlayer::PerformImpulse( int impulse ) {
 			// when we're not in single player, IMPULSE_19 is used for showScores
 			// otherwise it opens the pda
 			if ( !gameLocal.isMultiplayer ) {
-				//Dynamix FIXME test
+				// Dynamix FIXME test
 				//if ( objectiveSystemOpen ) {
 					TogglePDA();
 				/*} else if ( weapon_pda >= 0 ) {
@@ -6656,6 +6886,10 @@ void idPlayer::PerformImpulse( int impulse ) {
 		}
 		case IMPULSE_25: {
 			PrevForce();
+			break;
+		}
+		case IMPULSE_26: {
+			ToggleDevMenu();
 			break;
 		}
 		case IMPULSE_28: {
@@ -6779,6 +7013,7 @@ void idPlayer::AdjustSpeed( void ) {
 
 	speed *= PowerUpModifier(SPEED);
 	speed *=StatusEffectModifier(FORCESPEED);
+	speed *=StatusEffectModifier(RAGESPEED);
 
 	if ( influenceActive == INFLUENCE_LEVEL3 ) {
 		speed *= 0.33f;
@@ -7010,7 +7245,7 @@ void idPlayer::Move( void ) {
 	} else if ( health <= 0 ) {
 		physicsObj.SetContents( CONTENTS_CORPSE | CONTENTS_MONSTERCLIP );
 		physicsObj.SetMovementType( PM_DEAD );
-	} else if ( gameLocal.inCinematic || gameLocal.GetCamera() || privateCameraView || ( influenceActive == INFLUENCE_LEVEL2 ) ) {
+	} else if ( gameLocal.inCinematic || gameLocal.GetCamera() || privateCameraView || ( influenceActive == INFLUENCE_LEVEL2 || AI_DISABLED_TIME) ) { //Dynamix temp while I work out if this is the best way FIXME
 		physicsObj.SetContents( CONTENTS_BODY );
 		physicsObj.SetMovementType( PM_FREEZE );
 	} else {
@@ -7283,9 +7518,10 @@ void idPlayer::Think( void ) {
 		if ( objectiveSystemOpen && AI_PAIN ) {
 			TogglePDA();
 		}
-		usercmd.forwardmove = 0;
-		usercmd.rightmove = 0;
-		usercmd.upmove = 0;
+		//Testing while using PDA as spawn menu Dynamix
+		//usercmd.forwardmove = 0;
+		//usercmd.rightmove = 0;
+		//usercmd.upmove = 0;
 	}
 
 	// log movement changes for weapon bobbing effects
@@ -7311,19 +7547,15 @@ void idPlayer::Think( void ) {
 	}
 
 	// zooming
-	if ( ( usercmd.buttons ^ oldCmd.buttons ) & BUTTON_ZOOM ) {
+	// Toggle zoom test stuff in HandleZoom - move all zoom stuff here at some point Dynamix
+	if ( AI_TOGGLE_ZOOMED ) { HandleZoom(); }
+	if ( ( usercmd.buttons ^ oldCmd.buttons ) & BUTTON_ZOOM && !AI_TOGGLE_ZOOMED) {
 		if ( ( usercmd.buttons & BUTTON_ZOOM ) && weapon.GetEntity() ) {
 			zoomFov.Init( gameLocal.time, 200.0f, CalcFov( false ), weapon.GetEntity()->GetZoomFov() );
-			//Zoom sensitivity hack for now, should be engine side I think
+			// Zoom sensitivity hack for now, should be engine side I think
 			cvarSystem->SetCVarString( "m_yaw", "0.0044" );
 			cvarSystem->SetCVarString( "m_pitch", "0.0044" );
 			zoomed = true;
-		/*
-		if ( player->scoreBoardOpen || gameState == GAMEREVIEW ) {
-		if ( !playerState[ player->entityNumber ].scoreBoardUp ) {
-			scoreBoard->Activate( true, gameLocal.time );
-			playerState[ player->entityNumber ].scoreBoardUp = true;
-		}*/
 		} else {
 			zoomFov.Init( gameLocal.time, 200.0f, zoomFov.GetCurrentValue( gameLocal.time ), DefaultFov() );
 			cvarSystem->SetCVarString( "m_yaw", "0.022" );
@@ -7332,7 +7564,7 @@ void idPlayer::Think( void ) {
 		}
 	}
 
-		if ( IsInVehicle() ) {
+	if ( IsInVehicle() ) {
 		vehicleController.SetInput ( usercmd, viewAngles );
 				
 		// calculate the exact bobbed view position, which is used to
@@ -7738,6 +7970,7 @@ void idPlayer::CalcDamagePoints( idEntity *inflictor, idEntity *attacker, const 
 	damageDef->GetInt( "damage", "20", damage );
 	damage = GetDamageForLocation( damage, location );
 	damage *=StatusEffectModifier(PROTECT);
+	damage *=StatusEffectModifier(RAGEDAMAGEREDUCTION);
 
 	idPlayer *player = attacker->IsType( idPlayer::Type ) ? static_cast<idPlayer*>(attacker) : NULL;
 	if ( !gameLocal.isMultiplayer ) {
@@ -7967,6 +8200,12 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
 		health -= damage;
 
 		if ( health <= 0 ) {
+
+			//Will be if Rage active
+			if (rageActive) {
+				health = 1;
+				return;
+			}
 
 			if ( health < -999 ) {
 				health = -999;
@@ -10183,6 +10422,59 @@ bool idPlayer::UseForcePoints( float amount, int alignment, int type ) {
 }
 
 /*
+================
+idPlayer::GetForceLevel
+================
+*/
+int idPlayer::GetForceLevel( int forcePower ) {
+	return forceLevels[forcePower];
+}
+
+/*
+================
+idPlayer::SetForceLevel
+================
+*/
+bool idPlayer::SetForceLevel( int forcePower, int level ) {
+	if ( level > 3 ) { level = 3; }
+	forceLevels[forcePower] = level;
+	gameLocal.DPrintf("Forcepower set to level %d\n", forceLevels[forcePower] );
+	return true;
+}
+
+/*
+================
+idPlayer::addDetPack
+================
+*/
+void idPlayer::AddDetPack( idEntity* detPack ) {
+	detPacks.Append( detPack );
+}
+
+
+/*
+================
+idPlayer::removeDetPack
+================
+*/
+void idPlayer::RemoveDetPack( idEntity* detPack ) {
+	detPacks.Remove( detPack );
+}
+
+/*
+================
+idPlayer::removeDetPack
+================
+*/
+void idPlayer::DetonateStuff( ) {
+	// Work out if this is fine - Dynamix
+	for( int i = detPacks.Num() - 1; i >= 0; i-- ) {
+		detPacks[i]->ProcessEvent( &EV_Activate, this );
+		detPacks.RemoveIndex( i );
+	}
+}
+
+/*
 ===============
 idPlayer::Event_EnableForceRegen
 ===============
@@ -10236,6 +10528,114 @@ void idPlayer::Event_ShowWeaponIcons() {
 	hud->SetStateInt("showWeaponIcons", 1);
 }
 
+/*
+===============
+idPlayer::Event_EndRage
+===============
+*/
+void idPlayer::Event_EndRage() {
+	rageActive = FALSE;
+}
+
+/*
+===============
+idPlayer::Event_EndDisable
+===============
+*/
+void idPlayer::Event_EndDisable() {
+	AI_DISABLED_TIME = 0.0f;
+}
+
+/*
+===============
+idPlayer::Event_GiveArmor
+===============
+*/
+void idPlayer::Event_GiveArmor( int amount ) {
+	inventory.armor += amount;
+	if ( inventory.armor > inventory.maxHealth ) {
+		inventory.armor = inventory.maxHealth;
+	}
+}
+
+/*
+===============
+idPlayer::Event_SetArmor
+===============
+*/
+void idPlayer::Event_SetArmor( int amount ) {
+	inventory.armor = amount;
+	if ( inventory.armor > inventory.maxarmor ) {
+		inventory.armor = inventory.maxarmor;
+	}
+}
+
+/*
+===============
+idPlayer::Event_GiveHealth
+===============
+*/
+void idPlayer::Event_GiveHealth( int amount ) {
+	health += amount;
+	if ( health > inventory.maxHealth ) {
+		health = inventory.maxHealth;
+	}
+}
+
+/*
+===============
+idPlayer::Event_GiveAmmo
+===============
+*/
+void idPlayer::Event_GiveAmmo( int type, int amount ) {
+	//The maxammo thing is stupid, I'll fix it later FIXME Dynamix
+	inventory.ammo[type] += amount;
+}
+
+/*
+=====================
+idPlayer::Event_SaberReturned
+=====================
+*/
+void idPlayer::Event_SaberReturned() {  
+}
+
+/*
+=====================
+idPlayer::Event_GetSaberProjectile
+=====================
+*/
+void idPlayer::Event_GetSaberProjectile() {  
+	idThread::ReturnEntity( saberProjectile.GetEntity() );
+}
+
+/*
+===============
+idPlayer::ToggleZoom
+===============
+*/
+void idPlayer::ToggleZoom() {
+	AI_TOGGLE_ZOOMED = !AI_TOGGLE_ZOOMED;
+	//toggleZoom = !toggleZoom;
+	// Clean up zoom stuff since it won't fall through to the normal zoom hadnling
+	if (!AI_TOGGLE_ZOOMED) {
+		HandleZoom();
+	}
+
+}
+
+/*
+===============
+idPlayer::IncrementZoom
+===============
+
+void idPlayer::IncrementZoom( float amount, bool smooth ) {
+	desiredZoom -= 2.0f;
+	if ( desiredZoom <= 10.0f ) {
+		desiredZoom = 10.0f;
+	}
+}
+*/
 //Dynamix FIXME1 for vehicle transformation, temp i think
 /*
 ================
@@ -10263,4 +10663,49 @@ void idPlayer::UpdateModel( void ) {
 
 	// ensure that we call Present this frame
 	BecomeActive( TH_UPDATEVISUALS );
+}
+
+/*
+===============
+idPlayer::HandleZoom
+===============
+*/
+void idPlayer::HandleZoom( void ) {
+	if ( AI_TOGGLE_ZOOMED ) {
+		if ( weapon.GetEntity() ) {
+			zoomFov.Init( gameLocal.time, 200.0f, CalcFov( false ), weapon.GetEntity()->GetZoomFov() );
+			// Zoom sensitivity hack for now, should be engine side I think
+			cvarSystem->SetCVarString( "m_yaw", "0.0044" );
+			cvarSystem->SetCVarString( "m_pitch", "0.0044" );
+			zoomed = true;
+		} 
+	} else { 
+		zoomFov.Init( gameLocal.time, 200.0f, zoomFov.GetCurrentValue( gameLocal.time ), DefaultFov() );
+		cvarSystem->SetCVarString( "m_yaw", "0.022" );
+		cvarSystem->SetCVarString( "m_pitch", "0.022" );
+		zoomed = false;
+	}
+}
+
+/*
+=============
+idPlayer::SetSaberProjectile
+=============
+*/
+void idPlayer::SetSaberProjectile( idProjectile *projectile ) {
+	saberProjectile = static_cast<jkSaberProjectile *>( projectile );
+}
+
+/*
+=============
+idPlayer::RebindWorldModel
+=============
+*/
+void idPlayer::RebindWorldModel( void ) {
+	idWeapon *weap;
+
+	weap = weapon.GetEntity();
+	if ( weap ) {
+		weap->RebindWorldModel();
+	}
 }

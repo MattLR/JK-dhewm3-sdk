@@ -23,5 +23,12 @@ jkForceHeal::Event_DoForcePower
 */
 void jkForceHeal::Event_DoForcePower( void ) {
 	gameLocal.DPrintf ("Event_DoForcePower Force Heal\n");
-	owner->GiveHealthPool(25);
+
+	const function_t *state = owner->GetScriptFunction( "state_Heal" );
+	owner->AI_HEAL = TRUE;
+
+	struct statusEffect s = {HEAL, 1, gameLocal.time + 10000, 200, gameLocal.time + 200 };
+	owner->statusEffects.Append(s);
+
+	owner->SetState(state);
 }

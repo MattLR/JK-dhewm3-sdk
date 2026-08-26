@@ -124,6 +124,7 @@ const idEventDef EV_CallFunction( "callFunction", "s" );
 const idEventDef EV_SetNeverDormant( "setNeverDormant", "d" );
 //Dynamix
 const idEventDef EV_ObjectCall( "objectCall", "s" );
+const idEventDef EV_Use( "use", "e" );
 
 ABSTRACT_DECLARATION( idClass, idEntity )
 	EVENT( EV_GetName,				idEntity::Event_GetName )
@@ -579,7 +580,10 @@ void idEntity::Spawn( void ) {
 
 	InitDefaultPhysics( origin, axis );
 
-	SetOrigin( origin );
+	//Dynamix, adjustable offset to stop flags and weapons falling through floor
+	idVec3 offset = spawnArgs.GetVector("offset", "0 0 0"); 
+	
+	SetOrigin( origin + offset);
 	SetAxis( axis );
 
 	temp = spawnArgs.GetString( "model" );
@@ -1883,7 +1887,7 @@ void idEntity::BindToJoint( idEntity *master, const char *jointname, bool orient
 	}
 
 	if (master->IsType(idAnimatedVertex::Type)) {
-		gameLocal.Printf("Vertex animator bind to joint (tag)\n");
+		gameLocal.DPrintf("Vertex animator bind to joint (tag)\n");
 
 		dnVertexAnimator	*masterAnimatorVertex;
 
@@ -3151,6 +3155,11 @@ inflictor, attacker, dir, and point can be NULL for environmental effects
 bool idEntity::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
 					  const char *forceDefName, const int forceLevel, const int location ) {
 						gameLocal.DPrintf ("ForcePowerResponse idEntity\n");
+						return false;
+}
+
+bool idEntity::ForcePowerResponse(  const char *forceDefName, const int forceLevel ) {
+						gameLocal.DPrintf ("ForcePowerResponse idEntity tick overload\n");
 						return false;
 }
 

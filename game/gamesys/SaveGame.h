@@ -80,6 +80,7 @@ public:
 	void					WriteFX( const idDeclFX *fx );
 	void					WriteSoundShader( const idSoundShader *shader );
 	void					WriteModelDef( const class idDeclModelDef *modelDef );
+	void					WriteVertexDef( const class dnDeclVertexAnim *vertexDef );
 	void					WriteModel( const idRenderModel *model );
 	void					WriteUserInterface( const idUserInterface *ui, bool unique );
 	void					WriteRenderEntity( const renderEntity_t &renderEntity );
@@ -140,6 +141,7 @@ public:
 	void					ReadFX( const idDeclFX *&fx );
 	void					ReadSoundShader( const idSoundShader *&shader );
 	void					ReadModelDef( const idDeclModelDef *&modelDef );
+	void					ReadVertexDef( const dnDeclVertexAnim *&vertexDef );
 	void					ReadModel( idRenderModel *&model );
 	void					ReadUserInterface( idUserInterface *&ui );
 	void					ReadRenderEntity( renderEntity_t &renderEntity );

@@ -781,6 +781,8 @@ void Cmd_Trigger_f( const idCmdArgs &args ) {
 		return;
 	}
 
+	//So I don't need to add another command to send use signals
+	ent->Signal( SIG_USE );
 	ent->Signal( SIG_TRIGGER );
 	ent->ProcessEvent( &EV_Activate, player );
 	ent->TriggerGuis();
@@ -2306,6 +2308,41 @@ void Cmd_TestId_f( const idCmdArgs &args ) {
 }
 
 /*
+==================
+Cmd_SetForce_f
+
+Give items to a client
+==================
+*/
+void Cmd_SetForce_f( const idCmdArgs &args ) {
+	const char *name;
+	int			i;
+	bool		give_all;
+	idPlayer	*player;
+
+	player = gameLocal.GetLocalPlayer();
+	if ( !player || !gameLocal.CheatsOk() ) {
+		return;
+	}
+
+	name = args.Argv( 1 );
+
+	if ( idStr::Icmp( name, "all" ) == 0 ) {
+		give_all = true;
+	} else {
+		give_all = false;
+	}
+
+	if ( give_all ) {
+		player->SetForceLevel( atoi( args.Argv(1) ), atoi( args.Argv(2) ) );
+	}
+
+	if ( !give_all && !player->SetForceLevel( atoi( args.Argv(1) ), atoi( args.Argv(2) ) ) ) {
+		gameLocal.Printf( "unknown force power\n" );
+	}
+}
+
+/*
 =================
 idGameLocal::InitConsoleCommands
 
@@ -2413,7 +2450,12 @@ void idGameLocal::InitConsoleCommands( void ) {
 	// localization help commands
 	cmdSystem->AddCommand( "nextGUI",				Cmd_NextGUI_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"teleport the player to the next func_static with a gui" );
 	cmdSystem->AddCommand( "testid",				Cmd_TestId_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"output the string for the specified id." );
+
+	// Dynamix 
+	cmdSystem->AddCommand( "setForce",				Cmd_SetForce_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"set force levels" );
+
 }
+
 
 /*
 =================

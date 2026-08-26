@@ -444,6 +444,19 @@ void idSaveGame::WriteModelDef( const idDeclModelDef *modelDef ) {
 
 /*
 ================
+idSaveGame::WriteVertexDef
+================
+*/
+void idSaveGame::WriteVertexDef( const dnDeclVertexAnim *vertexDef ) {
+	if ( !vertexDef ) {
+		WriteString( "" );
+	} else {
+		WriteString( vertexDef->GetName() );
+	}
+}
+
+/*
+================
 idSaveGame::WriteSoundShader
 ================
 */
@@ -1218,6 +1231,22 @@ void idRestoreGame::ReadModelDef( const idDeclModelDef *&modelDef ) {
 		modelDef = NULL;
 	} else {
 		modelDef = static_cast<const idDeclModelDef *>( declManager->FindType( DECL_MODELDEF, name, false ) );
+	}
+}
+
+/*
+================
+idRestoreGame::ReadVertexDef
+================
+*/
+void idRestoreGame::ReadVertexDef( const dnDeclVertexAnim *&vertexDef ) {
+	idStr name;
+
+	ReadString( name );
+	if ( !name.Length() ) {
+		vertexDef = NULL;
+	} else {
+		vertexDef = static_cast<const dnDeclVertexAnim *>( declManager->FindType( DECL_VERTEXMODELDEF, name, false ) );
 	}
 }
 

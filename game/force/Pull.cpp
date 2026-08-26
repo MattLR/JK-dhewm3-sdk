@@ -10,6 +10,7 @@
 #include "Trigger.h"
 #include "SmokeParticles.h"
 #include "WorldSpawn.h"
+#include "Moveable.h"
 #include "Mover.h"
 
 CLASS_DECLARATION( jkSimpleForcePower, jkForcePull )
@@ -62,6 +63,10 @@ void jkForcePull::Event_DoForcePower( void ) {
 			float falloff = 0.0f + ( dist / pushRadius );
 			float impulse = pushStrength * falloff;
 
+			if (ent->ForcePowerResponse(this, this, -dir, "pull", 1, INVALID_JOINT)) {
+				continue;
+			}
+
 			idPhysics *phys = ent->GetPhysics();
 			if ( !phys ) {
 				continue;
@@ -71,9 +76,7 @@ void jkForcePull::Event_DoForcePower( void ) {
 				phys->SetLinearVelocity( vel );
 				*/
 			}
-			if (ent->ForcePowerResponse(this, this, -dir, "pull", 1, INVALID_JOINT)) {
-				continue;
-			}
+
 			//idMover_Binary *binary = dynamic_cast<idMover_Binary*>( ent );
 			if ( ent->IsType( idMover_Binary::Type ) ) {
 				//continue;
@@ -81,10 +84,18 @@ void jkForcePull::Event_DoForcePower( void ) {
 				ent->ProcessEvent( &EV_Activate, owner);
 				continue;
 			}
+
+			if ( ent->IsType( idMoveable::Type  ) ||  ent->IsType( idMoveableItem::Type  )) {
+				idVec3 vel = phys->GetLinearVelocity();
+				vel += -dir * impulse;
+				phys->SetLinearVelocity( vel );
+			}
+
 			// Handle NPCs/enemies (idAI or subclasses)
 			idAI *ai = dynamic_cast<idAI*>( ent );
 			if ( ent->IsType( idAI::Type ) ) {
-		}
+				//This won't get here because idAI has force power response, they need to handle their own ragdolls
+			}
 		
 		idAFEntity_Base *rag = dynamic_cast<idAFEntity_Base*>( ent );
 		if ( rag && rag->IsActiveAF() ) {

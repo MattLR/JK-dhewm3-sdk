@@ -25,16 +25,16 @@ void jkForceProtection::Event_DoForcePower( void ) {
 	gameLocal.DPrintf ("Event_DoForcePower Protection\n");
 
 	switch (owner->forceLevels[0]) {
-		case 0:
-			gameLocal.DPrintf ("DoForcePower Protection level 0\n");
+		case 1:
+			gameLocal.DPrintf ("DoForcePower Protection level 1\n");
 				if ( owner->UseForcePoints(50) ) {
 					struct statusEffect s = {1, 0.75, gameLocal.time + 20000};
 					owner->statusEffects.Append(s);
 					owner->hud->SetStateString( "activeForceBG", Icon() );
 				}
 			break;
-		case 1:
-			gameLocal.DPrintf ("DoForcePower Protection level 1\n");
+		case 2:
+			gameLocal.DPrintf ("DoForcePower Protection level 2\n");
 				if ( owner->UseForcePoints(50) ) {
 					struct statusEffect s = {1, 0.5, gameLocal.time + 20000};
 					owner->statusEffects.Append(s);

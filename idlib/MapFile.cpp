@@ -723,8 +723,13 @@ bool idMapFile::Parse( const char *filename, bool ignoreRegion, bool osPath ) {
 	idStr fullName;
 	idMapEntity *mapEnt;
 	int i, j, k;
+	bool dontParse;
+	dontParse = false;
 
 	name = filename;
+	if ( name.CheckExtension(".ents") ) {
+		dontParse = true;
+	}
 	name.StripFileExtension();
 	fullName = name;
 	hasPrimitiveData = false;
@@ -735,6 +740,17 @@ bool idMapFile::Parse( const char *filename, bool ignoreRegion, bool osPath ) {
 		src.LoadFile( fullName, osPath );
 	}
 
+	if (dontParse) {
+		// Clean this up - Dynamix
+		fullName.SetFileExtension( "ents" );
+		src.LoadFile( fullName, osPath );
+		if ( !src.IsLoaded() ) {
+			// didn't get anything at all
+			return false;
+		}
+	}
+
+	// Don't try and load a .map if we're doing a .ents
 	if ( !src.IsLoaded() ) {
 		// now try a .map file
 		fullName.SetFileExtension( "map" );
@@ -766,7 +782,6 @@ bool idMapFile::Parse( const char *filename, bool ignoreRegion, bool osPath ) {
 
 	// if the map has a worldspawn
 	if ( entities.Num() ) {
-
 		// "removeEntities" "classname" can be set in the worldspawn to remove all entities with the given classname
 		const idKeyValue *removeEntities = entities[0]->epairs.MatchPrefix( "removeEntities", NULL );
 		while ( removeEntities ) {
@@ -815,6 +830,61 @@ bool idMapFile::Parse( const char *filename, bool ignoreRegion, bool osPath ) {
 				if ( idStr::Icmp( mapEnt->epairs.GetString( "classname" ), "func_group" ) == 0 ) {
 					entities[0]->primitives.Append( mapEnt->primitives );
 					mapEnt->primitives.Clear();
+				}
+			}
+		}
+	}
+
+	// Dynamix - file to store extra entities (from RBDoom3BFG)
+	if ( !dontParse ) {
+		idMapFile extrasMap;
+		fullName = name;
+		fullName.StripFileExtension();
+		fullName += ".ents";
+		common->DPrintf("Extra ents file name: %s\n", fullName.c_str());
+
+		if ( extrasMap.Parse( fullName, ignoreRegion, osPath ) ) {
+			common->Printf("The extra map parses\n");
+			for ( i = 0; i < extrasMap.entities.Num(); i++ ) {
+				common->Printf("Extra map entity loop\n");
+				idMapEntity* extraEnt = extrasMap.entities[i];
+
+				const idKeyValue* kv = extraEnt->epairs.FindKey( "name" );
+				if ( kv && kv->GetValue().Length() ) {
+					mapEnt = FindEntity( kv->GetValue().c_str() );
+					if ( mapEnt ) {
+						// allow override old settings
+						for ( j = 0; j < extraEnt->epairs.GetNumKeyVals(); j++ ) {
+							const idKeyValue* kv2 = extraEnt->epairs.GetKeyVal( j );
+							const char* key = kv2->GetKey();
+							const char* val = kv2->GetValue();
+
+							if( idStr::Icmp( key, "name" ) != 0 )
+							{
+								// DG: if val is "", delete key from the entity
+								//     => same behavior as EntityChangeSpawnArgs()
+								if( val[0] == '\0' )
+								{
+									mapEnt->epairs.Delete( key );
+								}
+								else
+								{
+									mapEnt->epairs.Set( key, val );
+								}
+							}
+						}
+
+						continue;
+					}
+				}
+
+				// entity wasn't found so add new one
+				if ( idStr::Icmp( extraEnt->epairs.GetString( "classname" ), "worldspawn" ) != 0 ){
+					mapEnt = new idMapEntity();
+					entities.Append( mapEnt );
+
+					// don't grab brushes or polys
+					mapEnt->epairs.Copy( extraEnt->epairs );
 				}
 			}
 		}

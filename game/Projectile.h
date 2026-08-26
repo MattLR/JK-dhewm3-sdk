@@ -99,7 +99,7 @@ protected:
 		bool				noSplashDamage				: 1;
 	} projectileFlags;
 
-	//Dynamix
+	// Dynamix
 	dnTracerEffect *tracerEffect;
 
 	float					thrust;
@@ -161,14 +161,14 @@ protected:
 	float					speed;
 	idEntityPtr<idEntity>	enemy;
 	virtual void			GetSeekPos( idVec3 &out );
+	idAngles				angles;
+	float					clamp_dist;
+	float					turn_max;
 
 private:
 	idAngles				rndScale;
 	idAngles				rndAng;
-	idAngles				angles;
 	int						rndUpdateTime;
-	float					turn_max;
-	float					clamp_dist;
 	bool					burstMode;
 	bool					unGuided;
 	float					burstDist;
@@ -237,6 +237,58 @@ private:
 	void					Event_RemoveBeams();
 	void					ApplyDamage();
 };
+
+// Dynamix
+class jkSpawnerProjectile : public idProjectile {
+public :
+	CLASS_PROTOTYPE( jkSpawnerProjectile );
+
+							jkSpawnerProjectile( void );
+							~jkSpawnerProjectile( void );
+
+	//void					Save( idSaveGame *savefile ) const;
+	//void					Restore( idRestoreGame *savefile );
+
+	void					Spawn( void );
+	virtual bool			Collide( const trace_t &collision, const idVec3 &velocity );
+	virtual void			Think( void );
+
+};
+
+class jkSaberProjectile : public idGuidedProjectile {
+public:
+	CLASS_PROTOTYPE ( jkSaberProjectile );
+
+							//jkSaberProjectile();
+							~jkSaberProjectile();
+
+	void					Save( idSaveGame *savefile ) const;
+	void					Restore( idRestoreGame *savefile );
+
+	void					Spawn( void );
+	virtual void			Think( void );
+	virtual void			Launch( const idVec3 &start, const idVec3 &dir, const idVec3 &pushVelocity, const float timeSinceFire = 0.0f, const float power = 1.0f, const float dmgPower = 1.0f );
+	void					GuidedThink( void );
+	void					SetReturnPhase( void );
+
+protected:
+	virtual void			GetSeekPos( idVec3 &out );
+	void					ReturnToOwner( void );
+
+private:
+	idVec3					startingVelocity;
+	idVec3					endingVelocity;
+	float					accelTime;
+	int						launchTime;
+	bool					killPhase;
+	bool					returnPhase;
+	idVec3					destOrg;
+	idVec3					orbitOrg;
+	int						orbitTime;
+	int						smokeKillTime;
+	const idDeclParticle *	smokeKill;
+};
+
 
 /*
 ===============================================================================

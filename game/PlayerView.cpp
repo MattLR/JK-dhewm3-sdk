@@ -477,6 +477,12 @@ void idPlayerView::SingleView( idUserInterface *hud, const renderView_t *view ) 
 				renderSystem->DrawStretchPic( blob->x, blob->y, blob->w, blob->h,blob->s1, blob->t1, blob->s2, blob->t2, blob->material );
 			}
 		}
+
+		// Not sure if this is right Dynamix
+		if ( player->devMenuOpen ) {
+		player->devMenu->Redraw( gameLocal.time );
+		}
+		
 		player->DrawHUD( hud );
 
 		// armor impulse feedback

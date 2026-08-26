@@ -31,6 +31,9 @@ If you have questions concerning this license or the applicable additional terms
 #include "idlib/Dict.h"
 #include "renderer/Model.h"
 
+class idSaveGame;
+class idRestoreGame;
+
 /*
 ==============================================================================================
 
@@ -40,21 +43,28 @@ If you have questions concerning this license or the applicable additional terms
 */
 class dnDeclVertexAnim : public idDecl {
 public:
-	idDict animData; // Store animation data here
+								dnDeclVertexAnim();
+								~dnDeclVertexAnim();
 
-	virtual const char* DefaultDefinition() const override;
-	virtual bool Parse(const char* text, const int textLength) override;
-	virtual void FreeData() override;
+	// Fill in missing functions  - Dynamix FIXME
+	//virtual size_t				Size( void ) const;							
+	virtual const char * 		DefaultDefinition() const override;
+	virtual bool 				Parse( const char* text, const int textLength ) override;
+	virtual void 				FreeData( void ) override;
 
-	const idDict* FindAnim(const char* name) const;
+	//void						Touch( void ) const;
+
+	const idDict * 				FindAnim(const char* name) const;
 
 	// Add methods to access and manipulate the animation data
-	const idStr& GetModel() const;
-	const idList<idDict>& GetAnims() const;
+	const idStr & 				GetModel() const;
+	const idList<idDict> & 		GetAnims() const;
+
+	idDict 						animData; // Store animation data here
 
 private:
-	idStr model; // MD3 model path
-	idList<idDict> anims; // List of animations
+	idStr 						model; // MD3 model path
+	idList<idDict> 				anims; // List of animations
 };
 
 /*
@@ -66,37 +76,46 @@ private:
 */
 class dnVertexAnimator {
 public:
-	idRenderModel*					SetModel(const char* modelDecl);
-	void							PlayAnim(const char* animName, bool loop);
-	int								GetCurrentFrame() const { return lerpFrame; }
-	int								GetLastFrame() const { return lastFrame; }
-	float							GetBacklerp() const { return backlerp; }
-	void							Update(void);
-	bool							IsAnimDone(void);
-	void							ClearAllAnims(void);
+	// Fill in missing functions - FIXME Dynamix
+								dnVertexAnimator();
+								~dnVertexAnimator();
+
+
+	void						Save( idSaveGame *savefile ) const;					// archives object for save game file
+	void						Restore( idRestoreGame *savefile );					// unarchives object from save game file
+
+
+	idRenderModel*				SetModel(const char* modelDecl);
+	void						PlayAnim(const char* animName, bool loop);
+	int							GetCurrentFrame() const { return lerpFrame; }
+	int							GetLastFrame() const { return lastFrame; }
+	float						GetBacklerp() const { return backlerp; }
+	void						Update(void);
+	bool						IsAnimDone(void);
+	void						ClearAllAnims(void);
 	
 	#ifdef _CENG
-	jointHandle_t					GetJointHandle(const char* name);
-	bool							GetJointTransform(jointHandle_t jointHandle, idVec3& offset, idMat3& axis);
-	const idJointQuat *				GetDefaultPose( void ) const;
+	jointHandle_t				GetJointHandle(const char* name);
+	bool						GetJointTransform(jointHandle_t jointHandle, idVec3& offset, idMat3& axis);
+	const idJointQuat *			GetDefaultPose( void ) const;
 	#endif
 
 private:
-	const idDict*					currentAnim = nullptr;
-	bool							isLooping = false;
+	const idDict*				currentAnim = nullptr;
+	bool						isLooping = false;
 
-	int								lastTime = 0;
-	int								start_frame = 0;
-	int								end_frame = 0;
-	float							fps = 24.0;
+	int							lastTime = 0;
+	int							start_frame = 0;
+	int							end_frame = 0;
+	float						fps = 24.0;
 
-	int								lerpFrame = 0;
-	float							currentFrame = 0.0f;
-	int								lastFrame = 0;
-	float							backlerp = 0.0f;
+	int							lerpFrame = 0;
+	float						currentFrame = 0.0f;
+	int							lastFrame = 0;
+	float						backlerp = 0.0f;
 
-	idStr							currentAnimName;
+	idStr						currentAnimName;
 
-	const dnDeclVertexAnim*			vertexAnim;
-	idRenderModel*					renderModel = nullptr;
+	const dnDeclVertexAnim*		vertexAnim;
+	idRenderModel*				renderModel = nullptr;
 };

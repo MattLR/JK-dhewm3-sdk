@@ -44,6 +44,23 @@ dnDeclVertexAnim
 dnDeclVertexAnim::DefaultDefinition
 =====================
 */
+dnDeclVertexAnim::dnDeclVertexAnim() {
+}
+
+/*
+=====================
+dnDeclVertexAnim::DefaultDefinition
+=====================
+*/
+dnDeclVertexAnim::~dnDeclVertexAnim() {
+	FreeData();
+}
+
+/*
+=====================
+dnDeclVertexAnim::DefaultDefinition
+=====================
+*/
 const char* dnDeclVertexAnim::DefaultDefinition() const {
 	return "{\n\t\"model\" : \"path/to/model.md3\"\n\t\"anim <name> <start_frame> <end_frame> <fps>\"\n}\n";
 }
@@ -140,10 +157,50 @@ const idList<idDict>& dnDeclVertexAnim::GetAnims() const {
 /*
 ========================================
 
-dnDeclVertexAnim
+dnVertexAnimator
 
 ========================================
 */
+
+/*
+=====================
+dnVertexAnimator::dnVertexAnimator
+=====================
+*/
+dnVertexAnimator::dnVertexAnimator() {
+	//FreeData();
+}
+
+/*
+=====================
+idAnimator::~idAnimator
+=====================
+*/
+dnVertexAnimator::~dnVertexAnimator() {
+	//FreeData();
+}
+
+/*
+=====================
+dnVertexAnimator::Save
+=====================
+*/
+void dnVertexAnimator::Save( idSaveGame *savefile ) const {
+	savefile->WriteVertexDef( vertexAnim );
+	savefile->WriteString( currentAnimName);
+}
+
+/*
+=====================
+dnVertexAnimator::Restore
+=====================
+*/
+void dnVertexAnimator::Restore( idRestoreGame *savefile ) {
+	savefile->ReadVertexDef( vertexAnim );
+	savefile->ReadString( currentAnimName);
+	renderModel = renderModelManager->FindModel(vertexAnim->GetModel());
+	PlayAnim(currentAnimName, 0);
+}
 
 /*
 =====================
@@ -178,7 +235,7 @@ void dnVertexAnimator::PlayAnim(const char* animName, bool loop) {
 
 	//Dynamix Test - tag names
 	//for (int i = 0; i < 8; i++) {
-	//common->DPrintf("Tag name test %s\n", renderModel->GetJointName((jointHandle_t)i));
+	//common->DPrintf("Tag #%d name: %s\n", i, renderModel->GetJointName((jointHandle_t)i));
 	//}
 
 	currentAnim = vertexAnim->FindAnim(animName);

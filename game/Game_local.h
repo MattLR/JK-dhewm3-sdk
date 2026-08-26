@@ -42,6 +42,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "script/Script_Program.h"
 #include "ai/AAS.h"
 #include "anim/Anim.h"
+#include "anim/Anim_Vertex.h"
 #include "Pvs.h"
 #include "MultiplayerGame.h"
 

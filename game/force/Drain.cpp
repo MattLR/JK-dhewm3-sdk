@@ -12,7 +12,10 @@
 #include "WorldSpawn.h"
 #include "Mover.h"
 
+const idEventDef EV_Force_EndDrain( "endDrain" );
+
 CLASS_DECLARATION( jkSimpleForcePower, jkForceDrain )
+	EVENT( EV_Force_EndDrain,				jkForceDrain::Event_EndDrain )
 END_CLASS
 
 
@@ -22,7 +25,7 @@ jkForceDrain::Event_DoForcePower
 ================
 */
 void jkForceDrain::Event_DoForcePower( void ) {
-	gameLocal.DPrintf ("Event_DoForcePower\n");
+	gameLocal.DPrintf ("Event_DoForcePower Drain\n");
 
 	int i, listedEntities;
 	idEntity *entityList[ MAX_GENTITIES ];
@@ -32,78 +35,79 @@ void jkForceDrain::Event_DoForcePower( void ) {
 
 	listedEntities = gameLocal.EntitiesWithinRadius( GetPhysics()->GetOrigin(), pushRadius, entityList, MAX_GENTITIES );
 
-	int pushStrength = 1000;
-	gameLocal.Printf("Push\n");
+
 	idVec3 origin = GetPhysics()->GetOrigin();
-	idVec3 offset( 0.0f, 40.0f, 0.0f );
-	// Collect entities within radius. Doom 3 doesn't have a direct RadiusList helper in public SDK,
-	// so we use clip.Contents or iterate entities and test distance (simple but works for small maps).
 
-	for( i = 0; i < listedEntities; i++ ) {
-			idEntity *ent = entityList[ i ];
-			if ( !ent || ent == owner ) continue;
-			if ( ent->IsHidden() ) continue;
-			if ( ent->IsType( idWorldspawn::Type) ) continue;
-			if ( ent->IsType( idLight::Type) ) continue;
-			ent->GetName();
+	for ( i = 0; i < listedEntities; i++ ) {
+		idEntity *ent = entityList[ i ];
+		if ( !ent || ent == owner ) continue;
+		if ( ent->IsHidden() ) continue;
+		if ( ent->IsType( idWorldspawn::Type) ) continue;
+		if ( ent->IsType( idLight::Type) ) continue;
+
+		idVec3 dir(0, 0, 0);
+
+		const function_t *state = owner->GetScriptFunction( "state_Drain" );
+
+		// Handle NPCs/enemies (idAI or subclasses)
+		if ( ent->IsType( idAI::Type ) ) {
 			gameLocal.DPrintf(ent->GetName());
-			// basic distance check
-			idVec3 eorg = ent->GetPhysics()->GetOrigin();
-			float dist = ( eorg - origin ).Length();
-			if ( dist > pushRadius ) continue;
-
-			// Direction and strength falloff (optional)
-			idVec3 dir = eorg - (origin + offset);
-			if ( dir.Length() == 0 ) {
-				dir = this->GetPhysics()->GetAxis()[0];
-			} else {
-				dir.Normalize();
+			// Check if it's alive I guess
+			if ( !ent->ForcePowerResponse( this, this, dir, "drain", 1, INVALID_JOINT ) ) {
+				idThread::ReturnInt( false );
+				return;
 			}
-
-			float falloff = 1.0f - ( dist / pushRadius );
-			float impulse = pushStrength * falloff;
-
-
-			idPhysics *phys = ent->GetPhysics();
-			if ( !phys ) {
-				continue;
-				/*
-				idVec3 vel = phys->GetLinearVelocity();
-				vel += dir * impulse;
-				phys->SetLinearVelocity( vel );
-				*/
+			drainTarget = ent;
+			owner->AI_DRAIN = TRUE;
+			owner->SetState(state);
+			//Set this to min duration + a little buffer and then tick it up
+			owner->AI_DISABLED_TIME = 1.0f;
+			idThread::ReturnInt( true );
+			return;
 			}
-			ent->ForcePowerResponse(this, this, dir, "push", 1, INVALID_JOINT);
-			//idMover_Binary *binary = dynamic_cast<idMover_Binary*>( ent );
-			if ( ent->IsType( idMover_Binary::Type ) ) {
-				//continue;
-				ent->Signal( SIG_TRIGGER );
-				ent->ProcessEvent( &EV_Activate, owner);
-				continue;
-			}
-			// Handle NPCs/enemies (idAI or subclasses)
-			idAI *ai = dynamic_cast<idAI*>( ent );
-			if ( ent->IsType( idAI::Type ) ) {
-		}
-		
-		idAFEntity_Base *rag = dynamic_cast<idAFEntity_Base*>( ent );
-		if ( rag && rag->IsActiveAF() ) {
-			// Add impulses to all articulated bodies
-			for ( int j = 0; j < rag->GetAFPhysics()->GetNumBodies(); j++ ) {
-				rag->GetAFPhysics()->GetBody( j )->AddForce( dir, dir * impulse * 0.5f );
-			}
-			continue;
-		}
-			
+	}
 
-			// Damage small amount to ragdollable entities or apply other effects
-		if ( ent->fl.takedamage ) {
-			// Create damage structure
-			int dmg = (int)( 10.0f * falloff );
-			if ( dmg > 0 ) {
-					idEntity *inflictor = this;
-					ent->Damage( this, inflictor, dir, "push_power", dmg, 0 );
-				}
-			}
-		}
+	idThread::ReturnInt( false );
+	return;
+}
+
+/*
+================
+jkForceDrain::Event_DoForceTick
+================
+*/
+void jkForceDrain::Event_DoForceTick( void ) {
+	gameLocal.DPrintf ("Event_DoForceTick Drain\n");
+
+	float temp = owner->AI_DISABLED_TIME + 0.2f;
+	owner->AI_DISABLED_TIME = temp;
+	//Need to change this to deal with ticks somehow
+
+	if (drainTarget == NULL || !drainTarget->ForcePowerResponse( "drainTick", 1) ) {
+		idThread::ReturnInt( false );
+		return;
+	}
+
+	owner->health += 5;
+	idThread::ReturnInt( true );
+	//return false; Only if no target or no force points?
+}
+
+/*
+================
+jkForceDrain::Event_EndDrain
+================
+*/
+void jkForceDrain::Event_EndDrain( void ) {
+	gameLocal.DPrintf("Event_EndDrain");
+	owner->AI_DRAIN = FALSE;
+	owner->AI_DISABLED_TIME = 0.0f;
+
+	if (drainTarget != NULL) {
+	drainTarget->ForcePowerResponse( "drainEnd", 1);
+	drainTarget = NULL;
+	return;
+	}
+
+	drainTarget = NULL;
 }

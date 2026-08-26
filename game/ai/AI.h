@@ -422,7 +422,10 @@ protected:
 	idScriptBool			AI_HIT_ENEMY;
 	idScriptBool			AI_PUSHED;
 	//Dynamix
+	//Dynamix
+	idScriptBool			AI_DISABLED;
 	idScriptFloat			AI_DISABLED_TIME;
+	idScriptBool			AI_RECOVERY_ANIM;
 
 	//
 	// ai/ai.cpp
@@ -466,6 +469,8 @@ protected:
 
 	//Dynamix
 	virtual	bool			ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, const char *forceDefName, const int forceLevel, const int location );
+	virtual bool 			ForcePowerResponse( const char *forceDefName, const int forceLevel );
+
 
 
 	// navigation
@@ -674,6 +679,7 @@ protected:
 	void					Event_GetReachableEntityPosition( idEntity *ent );
 	//Dynamix
 	void					Event_EndMindTrick( void );
+	void					Event_Use( idEntity *activator );
 };
 
 class idCombatNode : public idEntity {

@@ -67,6 +67,7 @@ const idEventDef EV_Weapon_WeaponLowering( "weaponLowering" );
 const idEventDef EV_Weapon_Flashlight( "flashlight", "d" );
 const idEventDef EV_Weapon_LaunchProjectiles( "launchProjectiles", "dffff" );
 const idEventDef EV_Weapon_LaunchProjectiles_Alt( "launchProjectilesAlt", "dffff" );
+const idEventDef EV_Weapon_LaunchProjectilesPattern( "launchProjectilesPattern", "dffffdd" );
 const idEventDef EV_Weapon_CreateProjectile( "createProjectile", NULL, 'e' );
 const idEventDef EV_Weapon_EjectBrass( "ejectBrass" );
 const idEventDef EV_Weapon_Melee( "melee", NULL, 'd' );
@@ -76,8 +77,18 @@ const idEventDef EV_Weapon_AutoReload( "autoReload", NULL, 'f' );
 const idEventDef EV_Weapon_NetReload( "netReload" );
 const idEventDef EV_Weapon_IsInvisible( "isInvisible", NULL, 'f' );
 const idEventDef EV_Weapon_NetEndReload( "netEndReload" );
+//Dynamix
 const idEventDef EV_Weapon_StartAutoMelee( "startAutoMelee", "fd" );
 const idEventDef EV_Weapon_StopAutoMelee( "stopAutoMelee" );
+const idEventDef EV_Weapon_DetonateStuff( "detonateStuff" );
+const idEventDef EV_Weapon_ToggleZoom( "toggleZoom" );
+const idEventDef EV_Weapon_IncrementZoom( "incZoom" );
+const idEventDef EV_Weapon_SetZoomGuiParm( "setZoomGuiParm", "ss" );
+//const idEventDef EV_SetGuiFloat( "setGuiFloat", "sf" );
+const idEventDef EV_Weapon_ReturnSaberProj( "returnSaberProj" );
+// Move these to owner or something I hate this
+const idEventDef EV_Force_ForceAvailable( "forceAvailable", NULL, 'f' );
+const idEventDef EV_Force_UseForcePoints( "useForcePoints", "fdd" );
 
 //
 // class def
@@ -110,7 +121,9 @@ CLASS_DECLARATION( idAnimatedEntity, idWeapon )
 	EVENT( EV_Light_SetLightParm,				idWeapon::Event_SetLightParm )
 	EVENT( EV_Light_SetLightParms,				idWeapon::Event_SetLightParms )
 	EVENT( EV_Weapon_LaunchProjectiles,			idWeapon::Event_LaunchProjectiles )
+	//Dynamix
 	EVENT( EV_Weapon_LaunchProjectiles_Alt,		idWeapon::Event_LaunchProjectiles_Alt )
+	EVENT( EV_Weapon_LaunchProjectilesPattern,	idWeapon::Event_LaunchProjectilesPattern )
 	EVENT( EV_Weapon_CreateProjectile,			idWeapon::Event_CreateProjectile )
 	EVENT( EV_Weapon_EjectBrass,				idWeapon::Event_EjectBrass )
 	EVENT( EV_Weapon_Melee,						idWeapon::Event_Melee )
@@ -120,8 +133,16 @@ CLASS_DECLARATION( idAnimatedEntity, idWeapon )
 	EVENT( EV_Weapon_NetReload,					idWeapon::Event_NetReload )
 	EVENT( EV_Weapon_IsInvisible,				idWeapon::Event_IsInvisible )
 	EVENT( EV_Weapon_NetEndReload,				idWeapon::Event_NetEndReload )
+	//Dynamix
 	EVENT( EV_Weapon_StartAutoMelee,			idWeapon::Event_StartAutoMelee )
-	EVENT( EV_Weapon_StopAutoMelee,			    idWeapon::Event_StopAutoMelee )
+	EVENT( EV_Weapon_DetonateStuff,				idWeapon::Event_DetonateStuff )
+	EVENT( EV_Weapon_ToggleZoom,				idWeapon::Event_ToggleZoom )
+	EVENT( EV_Weapon_IncrementZoom,				idWeapon::Event_IncrementZoom )
+	EVENT( EV_Weapon_SetZoomGuiParm,			idWeapon::Event_SetZoomGuiParm )
+	//EVENT( EV_Weapon_IncrementZoom,			idWeapon::Event_IncrementZoom )
+	EVENT( EV_Weapon_ReturnSaberProj,			idWeapon::Event_ReturnSaber )
+	EVENT( EV_Force_UseForcePoints,				jkSimpleForcePower::Event_UseForcePoints ) // This doesn't seem like a good idea
+	EVENT( EV_Force_ForceAvailable,				idWeapon::Event_ForceAvailable )
 END_CLASS
 
 /***********************************************************************
@@ -449,6 +470,13 @@ void idWeapon::Restore( idRestoreGame *savefile ) {
 		projectileDict = projectileDef->dict;
 	} else {
 		projectileDict.Clear();
+	}
+
+	const idDeclEntityDef *projectileDefAlt = gameLocal.FindEntityDef( weaponDef->dict.GetString( "def_projectile_alt" ), false );
+	if ( projectileDefAlt ) {
+		projectileDictAlt = projectileDefAlt->dict;
+	} else {
+		projectileDictAlt.Clear();
 	}
 
 	const idDeclEntityDef *brassDef = gameLocal.FindEntityDef( weaponDef->dict.GetString( "def_ejectBrass" ), false );
@@ -795,6 +823,7 @@ void idWeapon::InitWorldModel( const idDeclEntityDef *def ) {
 		ent->Hide();
 	}
 
+	// Add jk tags after I add tag handling for GLM - Dynamix FIXME
 	flashJointWorld = ent->GetAnimator()->GetJointHandle( "flash" );
 	barrelJointWorld = ent->GetAnimator()->GetJointHandle( "muzzle" );
 	ejectJointWorld = ent->GetAnimator()->GetJointHandle( "eject" );
@@ -802,7 +831,7 @@ void idWeapon::InitWorldModel( const idDeclEntityDef *def ) {
 
 	meleebox.Zero();
 	float expansion = def->dict.GetFloat( "melee_tracerWidth", "0" ); 
-	if(expansion > 0){
+	if ( expansion > 0 ) {
 		useMeleeBox = true;
 		meleebox.ExpandSelf( expansion );
 	}
@@ -1320,6 +1349,9 @@ idWeapon::Think
 */
 void idWeapon::Think( void ) {
 	// do nothing because the present is called from the player through PresentWeapon
+	// Dynamix - this allows binding to viewmodel but it's laggy (unlerped 60hz?) and offsets to places you wouldn't expect
+	// Doesn't matter where you call it the physics engine is locked, it's why viewmodels don't use bind and update manually
+	//RunPhysics();
 }
 
 /*
@@ -2032,6 +2064,40 @@ void idWeapon::PresentWeapon( bool showViewModel ) {
 	// present the model
 	if ( showViewModel ) {
 		Present();
+
+		// Dumb stuff to get this to work while I work out how to do this properly - Dynamix FIXME
+		idMat3 axis2;
+		idVec3 origin2;
+		idEntity *ent2;
+		//offset with viewmodel won't work because I'm just zeroing everything out and putting it on origin, temp fixme
+		idVec3 offset2(-1, 0, 0);
+
+		RunPhysics();
+		ent2 = this->GetNextTeamEntity();
+
+		if (ent2) {
+			if ( ent2 == this) {
+				ent2 = this->GetNextTeamEntity();
+			}
+		//while ( ent2 && ent2 != this ){
+		//GetGlobalJointTransform( true, barrelJointView, origin2, axis2 );
+
+		origin2.Zero();
+		axis2.Identity();
+		ent2->SetOrigin(origin2 + offset2);
+		
+		ent2->SetAxis(axis2);
+		//ent2->BecomeActive( TH_PHYSICS );
+		//ent2->thinkFlags &= TH_PHYSICS;
+		//ent2->RunPhysics();
+
+		//ent2->Bind(this, 0);
+
+		//ent2 = ent2->GetNextTeamEntity();
+		//}
+		}
+		//end stupid hacky shit 
+
 	} else {
 		FreeModelDef();
 	}
@@ -3538,11 +3604,44 @@ void idWeapon::Event_StopAutoMelee( void ) {
 
 /*
 =====================
+idWeapon::Event_DetonateStuff
+=====================
+*/
+void idWeapon::Event_DetonateStuff( void ) {
+	owner->DetonateStuff();
+}
+
+/*
+=====================
+idWeapon::Event_ToggleZoom
+=====================
+*/
+void idWeapon::Event_ToggleZoom( void ) {
+	// This seems a bit fragile but I guess it works if you always want to reset the FoV
+	zoomFov = weaponDef->dict.GetInt( "zoomFov", "70" );
+	owner->ToggleZoom();
+}
+
+/*
+=====================
+idWeapon::Event_IncrementZoom - zooms in more
+=====================
+*/
+void idWeapon::Event_IncrementZoom( void ) {
+	zoomFov -= 5;
+	if ( zoomFov <= 10 ) {
+		zoomFov = 10;
+	}
+}
+
+
+/*
+=====================
 idWeapon::Event_Melee
 =====================
 */
 void idWeapon::Event_Melee( void ) {
-	if( !autoMeleeEnabled && EvaluateMelee() ){ //don't do this if it's already enabled...
+	if( !autoMeleeEnabled && EvaluateMelee() ){ // don't do this if it's already enabled...
            idThread::ReturnInt( 1 );
         }else{
            idThread::ReturnInt( 0 );
@@ -3809,4 +3908,237 @@ idWeapon::ClientPredictionThink
 */
 void idWeapon::ClientPredictionThink( void ) {
 	UpdateAnimation();
+}
+
+
+/*
+================
+idWeapon::Event_LaunchProjectilesPattern
+================
+*/
+void idWeapon::Event_LaunchProjectilesPattern( int num_projectiles, float spread, float fuseOffset, float launchPower, float dmgPower, int pattern, int defNum ) {
+	idProjectile	*proj;
+	idEntity		*ent;
+	int				i;
+	idVec3			dir;
+	float			ang;
+	float			spin;
+	float			distance;
+	trace_t			tr;
+	idVec3			start;
+	idVec3			muzzle_pos;
+	idBounds		ownerBounds, projBounds;
+
+	if ( IsHidden() ) {
+		return;
+	}
+
+	if ( !projectileDict.GetNumKeyVals() ) {
+		const char *classname = weaponDef->dict.GetString( "classname" );
+		gameLocal.Warning( "No projectile defined on '%s'", classname );
+		return;
+	}
+
+	// avoid all ammo considerations on a client
+	if ( !gameLocal.isClient ) {
+
+		if ( ( clipSize != 0 ) && ( ammoClip <= 0 ) ) {
+			return;
+		}
+
+		if( clipSize == 0 ) {
+			//Weapons with a clip size of 0 launch strait from inventory without moving to a clip
+			owner->inventory.UseAmmo( ammoType, ammoRequired );
+		}
+
+		if ( clipSize && ammoRequired ) {
+			ammoClip -= ammoRequired;
+		}
+
+		if ( !silent_fire ) {
+			// wake up nearby monsters
+			gameLocal.AlertAI( owner );
+		}
+
+	}
+
+	// set the shader parm to the time of last projectile firing,
+	// which the gun material shaders can reference for single shot barrel glows, etc
+	renderEntity.shaderParms[ SHADERPARM_DIVERSITY ]	= gameLocal.random.CRandomFloat();
+	renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ]	= -MS2SEC( gameLocal.time );
+
+	if ( worldModel.GetEntity() ) {
+		worldModel.GetEntity()->SetShaderParm( SHADERPARM_DIVERSITY, renderEntity.shaderParms[ SHADERPARM_DIVERSITY ] );
+		worldModel.GetEntity()->SetShaderParm( SHADERPARM_TIMEOFFSET, renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] );
+	}
+
+	// calculate the muzzle position
+	if ( barrelJointView != INVALID_JOINT && projectileDict.GetBool( "launchFromBarrel" ) ) {
+		// there is an explicit joint for the muzzle
+		GetGlobalJointTransform( true, barrelJointView, muzzleOrigin, muzzleAxis );
+	} else {
+		// go straight out of the view
+		muzzleOrigin = playerViewOrigin;
+		muzzleAxis = playerViewAxis;
+	}
+
+	// add some to the kick time, incrementally moving repeat firing weapons back
+	if ( kick_endtime < gameLocal.time ) {
+		kick_endtime = gameLocal.time;
+	}
+	kick_endtime += muzzle_kick_time;
+	if ( kick_endtime > gameLocal.time + muzzle_kick_maxtime ) {
+		kick_endtime = gameLocal.time + muzzle_kick_maxtime;
+	}
+
+	if ( !gameLocal.isClient ) {
+		ownerBounds = owner->GetPhysics()->GetAbsBounds();
+
+		owner->AddProjectilesFired( num_projectiles );
+
+		float spreadRad = DEG2RAD( spread );
+
+		// Add spawnarg Dynamix FIXME
+		float totalAngle = 4.0f*( num_projectiles - 1 );
+		float startDeg = -totalAngle/2;
+
+		for( i = 0; i < num_projectiles; i++ ) {
+			ang = idMath::Sin( spreadRad * gameLocal.random.RandomFloat() );
+			spin = (float)DEG2RAD( 360.0f ) * gameLocal.random.RandomFloat();
+
+			float offset;
+
+			if ( num_projectiles > 1 ) {
+			offset = (float)DEG2RAD(startDeg + i * (totalAngle / (num_projectiles - 1)));
+			} else {
+				offset = 0.0f;
+			}
+
+			idAngles yawAngles(0.0f, RAD2DEG(offset), 0.0f);
+			idMat3 yawAxis = yawAngles.ToMat3();
+
+			idMat3 spreadAxis = yawAxis * playerViewAxis;
+
+			dir = spreadAxis[0]
+    		+ spreadAxis[2] * (ang * idMath::Sin(spin))
+    		- spreadAxis[1] * (ang * idMath::Cos(spin));
+
+			dir.Normalize();
+
+			gameLocal.SpawnEntityDef( projectileDict, &ent );
+			if ( !ent || !ent->IsType( idProjectile::Type ) ) {
+				const char *projectileName = weaponDef->dict.GetString( "def_projectile" );
+				gameLocal.Error( "'%s' is not an idProjectile", projectileName );
+			}
+
+			proj = static_cast<idProjectile *>(ent);
+			proj->Create( owner, muzzleOrigin, dir );
+
+			projBounds = proj->GetPhysics()->GetBounds().Rotate( proj->GetPhysics()->GetAxis() );
+
+			// make sure the projectile starts inside the bounding box of the owner
+			if ( i == 0 ) {
+				muzzle_pos = muzzleOrigin + playerViewAxis[ 0 ] * 2.0f;
+				if ( ( ownerBounds - projBounds).RayIntersection( muzzle_pos, playerViewAxis[0], distance ) ) {
+					start = muzzle_pos + distance * playerViewAxis[0];
+				}
+				else {
+					start = ownerBounds.GetCenter();
+				}
+				gameLocal.clip.Translation( tr, start, muzzle_pos, proj->GetPhysics()->GetClipModel(), proj->GetPhysics()->GetClipModel()->GetAxis(), MASK_SHOT_RENDERMODEL, owner );
+				muzzle_pos = tr.endpos;
+			}
+
+			proj->Launch( muzzle_pos, dir, pushVelocity, fuseOffset, launchPower );
+		}
+
+		// toss the brass
+		if( brassDelay >= 0 ) {
+			PostEventMS( &EV_Weapon_EjectBrass, brassDelay );
+		}
+	}
+
+	// add the light for the muzzleflash
+	if ( !lightOn ) {
+		MuzzleFlashLight();
+	}
+
+	owner->WeaponFireFeedback( &weaponDef->dict );
+
+	// reset muzzle smoke
+	weaponSmokeStartTime = gameLocal.time;
+}
+
+/*
+===============
+idWeapon::Event_SetZoomGuiParm
+===============
+*/
+void idWeapon::Event_SetZoomGuiParm( const char *key, const char *val ) {
+		if ( zoomGui ) {
+			if ( idStr::Icmpn( key, "gui_", 4 ) == 0 ) {
+				spawnArgs.Set( key, val );
+			}
+			zoomGui->SetStateString( key, val );
+			zoomGui->StateChanged( gameLocal.time );
+		}
+}
+
+/*
+===============
+idWeapon::Event_ReturnSaber
+===============
+*/
+void idWeapon::Event_ReturnSaber( void ) {
+	owner->saberProjectile.GetEntity()->SetReturnPhase();
+}
+
+/*
+===============
+idWeapon::idWeapon::Event_ForceAvailable
+===============
+*/
+void idWeapon::Event_ForceAvailable( void ) {
+	int forceAvail = owner->forcePool;
+	idThread::ReturnFloat( forceAvail );
+}
+
+
+/*
+===============
+idWeapon::RebindWorldModel
+===============
+*/
+void idWeapon::RebindWorldModel( void ) {
+	idEntity *ent;
+	const char *attach = NULL;
+	
+	ent = worldModel.GetEntity();
+
+	assert( ent );
+	assert( weaponDef );
+
+	//const char *model = weaponDef->dict.GetString( "model_world" );
+	//Dynamix - check for jk joint first
+	attach = weaponDef->dict.GetString( "joint_attach_jk" );
+	if ( *attach == '\0' ) {
+		attach = weaponDef->dict.GetString( "joint_attach" );
+	}
+
+	//ent->SetSkin( NULL );
+	//if ( model[0] && attach[0] ) {
+	//ent->Show();
+	//ent->SetModel( model );
+	//if ( ent->GetAnimator()->ModelDef() ) {
+	//	ent->SetSkin( ent->GetAnimator()->ModelDef()->GetDefaultSkin() );
+	//}
+	//ent->GetPhysics()->SetContents( 0 );
+	//ent->GetPhysics()->SetClipModel( NULL, 1.0f );
+	ent->BindToJoint( owner, attach, true );
+	ent->GetPhysics()->SetOrigin( vec3_origin );
+	ent->GetPhysics()->SetAxis( mat3_identity );
+
+	// Move to setter Dynamix FIXME
+	owner->AI_SABER_THROWN = false;
+
 }

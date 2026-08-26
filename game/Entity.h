@@ -318,6 +318,7 @@ public:
 
 	//Dynamix
 	virtual	bool			ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, const char *forceDefName, const int forceLevel, const int location );
+	virtual bool 			ForcePowerResponse( const char *forceDefName, const int forceLevel );
 
 	// scripting
 	virtual bool			ShouldConstructScriptObjectAtSpawn( void ) const;

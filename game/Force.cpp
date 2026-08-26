@@ -75,9 +75,11 @@ const idEventDef EV_Weapon_AutoReload( "autoReload", NULL, 'f' );
 const idEventDef EV_Weapon_NetReload( "netReload" );
 const idEventDef EV_Weapon_IsInvisible( "isInvisible", NULL, 'f' );
 const idEventDef EV_Weapon_NetEndReload( "netEndReload" );
-const idEventDef EV_Force_DoForcePower( "doForcePower" );
+//Dynamix
+const idEventDef EV_Force_DoForcePower( "doForcePower", NULL, 'd' );
+const idEventDef EV_Force_DoForceTick( "doForceTick", NULL, 'd' );
 const idEventDef EV_Force_UseForcePoints( "useForcePoints", "fdd" );
-
+const idEventDef EV_Force_ForceAvailable( "forceAvailable", NULL, 'f' );
 
 //
 // class def
@@ -119,12 +121,14 @@ CLASS_DECLARATION( idAnimatedEntity, jkSimpleForcePower )
 	EVENT( EV_Weapon_NetReload,					jkSimpleForcePower::Event_NetReload )
 	EVENT( EV_Weapon_IsInvisible,				jkSimpleForcePower::Event_IsInvisible )
 	EVENT( EV_Weapon_NetEndReload,				jkSimpleForcePower::Event_NetEndReload )
+	//Dynamix
 	EVENT( EV_Force_DoForcePower,				jkSimpleForcePower::Event_DoForcePower )
+	EVENT( EV_Force_DoForceTick,				jkSimpleForcePower::Event_DoForceTick )
 	EVENT( EV_Force_UseForcePoints,				jkSimpleForcePower::Event_UseForcePoints )
+	EVENT( EV_Force_ForceAvailable,				jkSimpleForcePower::Event_ForceAvailable )
 END_CLASS
 
 CLASS_DECLARATION( jkSimpleForcePower, jkForcePower )
-
 END_CLASS
 
 /***********************************************************************
@@ -1023,7 +1027,7 @@ void jkSimpleForcePower::GetWeaponDef( const char *objectname, int ammoinclip ) 
 	}
 
 	WEAPON_ATTACK.LinkTo(		scriptObject, "WEAPON_ATTACK" );
-	WEAPON_ATTACK_ALT.LinkTo(		scriptObject, "WEAPON_ATTACK_ALT" );
+	WEAPON_ATTACK_ALT.LinkTo(	scriptObject, "WEAPON_ATTACK_ALT" );
 	WEAPON_RELOAD.LinkTo(		scriptObject, "WEAPON_RELOAD" );
 	WEAPON_NETRELOAD.LinkTo(	scriptObject, "WEAPON_NETRELOAD" );
 	WEAPON_NETENDRELOAD.LinkTo(	scriptObject, "WEAPON_NETENDRELOAD" );
@@ -3404,12 +3408,47 @@ void jkSimpleForcePower::Event_DoForcePower( void ) {
 
 /*
 ===============
-jkSimpleForcePower::Event_DoForcePower
+jkSimpleForcePower::Event_DoForceTick
+===============
+*/
+void jkSimpleForcePower::Event_DoForceTick( void ) {
+}
+
+/*
+===============
+jkSimpleForcePower::Event_UseForcePoints
 ===============
 */
 void jkSimpleForcePower::Event_UseForcePoints( float amount, int alignment, int type ) {
 	owner->UseForcePoints(amount, alignment, type);
 }
+
+/*
+===============
+jkSimpleForcePower::Event_ForceAvailable
+===============
+*/
+void jkSimpleForcePower::Event_ForceAvailable( void ) {
+	int forceAvail = owner->forcePool;
+	idThread::ReturnFloat( forceAvail );
+}
+
+/*
+================
+jkSimpleForcePower::GetForceLevel
+================
+*/
+int jkSimpleForcePower::GetForceLevel( int forcePower ) {
+	return owner->GetForceLevel(forcePower);
+}
+
+
+/*
+================
+jkForcePower
+================
+*/
+
 
 /*
 ================
@@ -3432,7 +3471,9 @@ void jkForcePower::BeginAttack( void ) {
 	}
 	WEAPON_ATTACK = true;
 
+	// Make enum
 	int forceLevel = 1;
 	gameLocal.DPrintf("Force.cpp BeginAttack %d\n", forceLevel);
 	owner->inventory.GivePowerUp( owner, BERSERK, 30000);
 }
+

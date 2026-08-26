@@ -29,7 +29,7 @@ void jkForceSpeed::Event_DoForcePower( void ) {
 		case 0:
 			gameLocal.DPrintf ("DoForcePower Speed level 0\n");
 				if ( owner->UseForcePoints(50) ) {
-					struct statusEffect s = {0, 1.33, gameLocal.time + 10000};
+					struct statusEffect s = {FORCESPEED, 1.33f, gameLocal.time + 10000};
 					owner->statusEffects.Append(s);
 					owner->hud->SetStateString( "activeForceBG", Icon() );
 				}
@@ -37,7 +37,7 @@ void jkForceSpeed::Event_DoForcePower( void ) {
 		case 1:
 			gameLocal.DPrintf ("DoForcePower Speed level 1\n");
 				if ( owner->UseForcePoints(50) ) {
-					struct statusEffect s = {0, 1.33, gameLocal.time + 10000};
+					struct statusEffect s = {FORCESPEED, 1.33f, gameLocal.time + 10000};
 					owner->statusEffects.Append(s);
 					owner->hud->SetStateString( "activeForceBG", Icon() );
 				}
@@ -45,7 +45,7 @@ void jkForceSpeed::Event_DoForcePower( void ) {
 		case 3:
 			gameLocal.DPrintf ("DoForcePower Speed level 3\n");
 				if ( owner->UseForcePoints(50) ) {
-					struct statusEffect s = {0, 1.33, gameLocal.time + 10000};
+					struct statusEffect s = {FORCESPEED, 1.33f, gameLocal.time + 10000};
 					owner->statusEffects.Append(s);
 					owner->hud->SetStateString( "activeForceBG", Icon() );
 				}

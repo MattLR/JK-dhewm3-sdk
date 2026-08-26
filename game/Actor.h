@@ -34,6 +34,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "PlayerView.h"
 #include "vehicle/VehicleController.h"
 
+class idFuncEmitter;
+
 /*
 ===============================================================================
 
@@ -63,6 +65,12 @@ extern const idEventDef AI_EnterVehicle;
 extern const idEventDef AI_ExitVehicle;
 
 class idDeclParticle;
+
+typedef struct funcEmitter_s {
+	char				name[64];
+	idFuncEmitter*		particle;
+	jointHandle_t		joint;
+} funcEmitter_t;
 
 class idAnimState {
 public:
@@ -226,11 +234,16 @@ public:
 	bool					AnimDone( int channel, int blendFrames );
 	virtual void			SpawnGibs( const idVec3 &dir, const char *damageDefName );
 
-	//Dynamix - coded anim states + vehicle stuff
+	// Dynamix - coded anim states + vehicle stuff
 	int						PlayAnim				( int channel, const char *name, int blendFrames );
 	void					SetCAnimState			( int channel, const char *name, int blendFrames = 0, int flags = 0 );
 	void					PostCAnimState			( int channel, const char *name, int blendFrames = 0, int delay = 0, int flags = 0 );
 	bool					IsInVehicle 			( void ) const;
+
+	// Dynamix d3xp emitter functions
+	idEntity*				StartEmitter( const char* name, const char* joint, const char* particle );
+	idEntity*				GetEmitter( const char* name );
+	void					StopEmitter( const char* name );
 
 protected:
 	friend class			idAnimState;
@@ -292,13 +305,16 @@ protected:
 
 	idList<idAttachInfo>	attachments;
 
+	//Dynamix - d3xp emitters from AI
+	idHashTable<funcEmitter_t> funcEmitters;
+
 	virtual void			Gib( const idVec3 &dir, const char *damageDefName );
 
 	// RAVEN BEGIN
-// bdube: vehicles
+	// bdube: vehicles
 	virtual bool			EnterVehicle ( idEntity* vehicle );
 	virtual bool			ExitVehicle	 ( bool force = false );
-// RAVEN END
+	// RAVEN END
 
 
 	jkVehicleController		vehicleController;
@@ -358,9 +374,13 @@ private:
 	void					Event_SetState( const char *name );
 	void					Event_GetState( void );
 	void					Event_GetHead( void );
-	//Dynamix
+	// Dynamix
 	void					Event_EnterVehicle	( idEntity* vehicle );
 	void					Event_ExitVehicle	( bool force );
+	// Dynamix d3xp events for emitters, moved from AI to Actor
+	void					Event_StartEmitter( const char* name, const char* joint, const char* particle );
+	void					Event_GetEmitter( const char* name );
+	void					Event_StopEmitter( const char* name );
 
 	protected:
 	idAnimState&			GetCAnimState			( int channel );

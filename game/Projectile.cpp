@@ -396,8 +396,8 @@ void idProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 
 
 	thruster.SetPosition( &physicsObj, 0, idVec3( GetPhysics()->GetBounds()[ 0 ].x, 0, 0 ) );
 
-	//Dynamix - dentonmod beams
-	// place this line before checking the fuse- for beam weapons
+	// Dynamix - dentonmod beams
+	// place this line before checking the fuse - for beam weapons
 	damageDef = gameLocal.FindEntityDef( spawnArgs.GetString( "def_damage" ) );
 
 	if ( !gameLocal.isClient ) {
@@ -426,8 +426,8 @@ void idProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 
 		StartSound( "snd_fly", SND_CHANNEL_BODY, 0, false, NULL );
 	}
 
-		//Dynamix dentonmod beams 
-		//Dynamix, this was breaking launchfrombarrel 1 beam weapons, I have no idea what this is doing 
+	// Dynamix dentonmod beams 
+	// Dynamix, this was breaking launchfrombarrel 1 beam weapons, I have no idea what this is doing 
 	/*if( spawnArgs.GetBool( "launchFromBarrel") ) {
 			idStr tracerModel;
 			if( spawnArgs.GetString( "beam_skin", NULL ) != NULL ) {	// See if there's a beam_skin
@@ -437,7 +437,7 @@ void idProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 
 				SetModel( tracerModel );
 			}
 		}*/
-		//Dynamix end
+		// Dynamix end
 
 	smokeFlyTime = 0;
 	const char *smokeName = spawnArgs.GetString( "smoke_fly" );
@@ -539,11 +539,11 @@ bool idProjectile::Collide( const trace_t &collision, const idVec3 &velocity ) {
 		return false;
 	}
 
-	//Dynamix dentonmod beams
+	// Dynamix dentonmod beams
 	if( tracerEffect!= NULL && tracerEffect->IsType( dnRailBeam::Type() ) ) {
 		static_cast<dnRailBeam *>( tracerEffect )->Create( collision.c.point );
 	}
-	//Dynamix end
+	// Dynamix end
 
 	// remove projectile when a 'noimpact' surface is hit
 	if ( ( collision.c.material != NULL ) && ( collision.c.material->GetSurfaceFlags() & SURF_NOIMPACT ) ) {
@@ -2452,4 +2452,497 @@ idDebris::Event_Fizzle
 */
 void idDebris::Event_Fizzle( void ) {
 	Fizzle();
+}
+
+/*
+===============================================================================
+
+	jkSpawnerProjectile
+
+===============================================================================
+*/
+
+CLASS_DECLARATION( idProjectile, jkSpawnerProjectile )
+END_CLASS
+
+/*
+=================
+jkSpawnerProjectile::jkSpawnerProjectile
+=================
+*/
+jkSpawnerProjectile::jkSpawnerProjectile( void ) {
+}
+
+/*
+=================
+jkSpawnerProjectile::~jkSpawnerProjectile
+=================
+*/
+jkSpawnerProjectile::~jkSpawnerProjectile( void ) {
+}
+
+/*
+================
+jkSpawnerProjectile::Spawn
+================
+*/
+void jkSpawnerProjectile::Spawn( void ) {
+}
+
+/*
+=================
+jkSpawnerProjectile::Collide
+=================
+*/
+bool jkSpawnerProjectile::Collide( const trace_t &collision, const idVec3 &velocity ) {
+	idEntity	*ent;
+	idEntity	*ignore;
+	const char	*damageDefName;
+	idVec3		dir;
+	float		push;
+	float		damageScale;
+
+	if ( state == EXPLODED || state == FIZZLED ) {
+		return true;
+	}
+
+	// predict the explosion
+	if ( gameLocal.isClient ) {
+		if ( ClientPredictionCollide( this, spawnArgs, collision, velocity, !spawnArgs.GetBool( "net_instanthit" ) ) ) {
+			Explode( collision, NULL );
+			return true;
+		}
+		return false;
+	}
+
+	// get the entity the projectile collided with
+	ent = gameLocal.entities[ collision.c.entityNum ];
+	if ( ent == owner.GetEntity() ) {
+		assert( 0 );
+		return true;
+	}
+
+	// direction of projectile
+	dir = velocity;
+	dir.Normalize();
+
+
+	// MP: projectiles open doors
+	if ( gameLocal.isMultiplayer && ent->IsType( idDoor::Type ) && !static_cast< idDoor * >(ent)->IsOpen() && !ent->spawnArgs.GetBool( "no_touch" ) ) {
+		//ent->ProcessEvent( &EV_Activate , this );
+		// Dynamix make it bounce off doors later
+	}
+
+	if ( ent->IsType( idActor::Type ) || ( ent->IsType( idAFAttachment::Type ) && static_cast<const idAFAttachment*>(ent)->GetBody()->IsType( idActor::Type ) ) ) {
+		if ( !projectileFlags.detonate_on_actor ) {
+			// Check jk behaviour Dynamix
+			return false;
+		}
+	} else {
+		if ( !projectileFlags.detonate_on_world ) {
+			if ( !StartSound( "snd_ricochet", SND_CHANNEL_ITEM, 0, true, NULL ) ) {
+				float len = velocity.Length();
+				if ( len > BOUNCE_SOUND_MIN_VELOCITY ) {
+					SetSoundVolume( len > BOUNCE_SOUND_MAX_VELOCITY ? 1.0f : idMath::Sqrt( len - BOUNCE_SOUND_MIN_VELOCITY ) * ( 1.0f / idMath::Sqrt( BOUNCE_SOUND_MAX_VELOCITY - BOUNCE_SOUND_MIN_VELOCITY ) ) );
+					StartSound( "snd_bounce", SND_CHANNEL_ANY, 0, true, NULL );
+				}
+			}
+			return false;
+		}
+	}
+
+	SetOrigin( collision.endpos );
+	SetAxis( collision.endAxis );
+
+	// unlink the clip model because we no longer need it
+	GetPhysics()->UnlinkClip();
+
+	damageDefName = spawnArgs.GetString( "def_damage" );
+
+	ignore = NULL;
+	// FIXME Dynamix - need to set some flags and have a way to handle the projectile being force pushed
+
+	// if the hit entity takes damage
+	if ( ent->fl.takedamage ) {
+		if ( damagePower ) {
+			damageScale = damagePower;
+		} else {
+			damageScale = 1.0f;
+		}
+
+		// if the projectile owner is a player
+		if ( owner.GetEntity() && owner.GetEntity()->IsType( idPlayer::Type ) ) {
+			// if the projectile hit an actor
+			if ( ent->IsType( idActor::Type ) ) {
+				idPlayer *player = static_cast<idPlayer *>( owner.GetEntity() );
+				player->AddProjectileHits( 1 );
+				damageScale *= player->PowerUpModifier( PROJECTILE_DAMAGE );
+			}
+		}
+
+		// Skip damage for now
+		//if ( damageDefName[0] != '\0' ) {
+		//	ent->Damage( this, owner.GetEntity(), dir, damageDefName, damageScale, CLIPMODEL_ID_TO_JOINT_HANDLE( collision.c.id ) );
+		//	ignore = ent;
+		//}
+	}
+
+	// if the projectile causes a damage effect
+	/* Dynamix FIX
+	if ( spawnArgs.GetBool( "impact_damage_effect" ) ) {
+		// if the hit entity has a special damage effect
+		if ( ent->spawnArgs.GetBool( "bleed" ) ) {
+			ent->AddDamageEffect( collision, velocity, damageDefName );
+		} else {
+			AddDefaultDamageEffect( collision, velocity );
+		}
+	}
+	*/
+	//Explode( collision, ignore );
+
+	//test spawning an entity
+	idDict		dict;
+	idVec3		org;
+	idEntity *ent2;
+	const char *spawnclass;
+
+	bool mode  = spawnArgs.GetBool("spawnsMode", "0");
+	spawnclass = spawnArgs.GetString( "spawns" );
+	dict.Set( "classname", spawnclass );
+	dict.SetBool( "mode", mode );
+
+	org = collision.endpos;
+	idAngles opp = (-collision.c.normal).ToAngles();
+	dict.Set( "origin", org.ToString() );
+	dict.Set( "angles", opp.ToString() );
+	// Angles are set on the spawned object for now, can do it here too and it'll just be overwritten if
+	// I want to use this for spawning other things
+
+
+	gameLocal.SpawnEntityDef( dict, &ent2 );
+
+	if ( idStr::Icmpn( spawnclass, "misc_det_pack", 6 ) == 0 ) {
+	idPlayer *player = static_cast<idPlayer *>( owner.GetEntity() );
+	player->AddDetPack( ent2 );
+	}
+
+	PostEventMS( &EV_Remove, 5);
+	//Add sound for hitting and removal of projectile ent, making a new function for this is better really
+
+	return true;
+}
+
+/*
+================
+jkSpawnerProjectile::Think
+================
+*/
+void jkSpawnerProjectile::Think( void ) {
+	idProjectile::Think();
+}
+
+/*
+===============================================================================
+
+jkSaberProjectile
+
+===============================================================================
+*/
+
+CLASS_DECLARATION( idGuidedProjectile, jkSaberProjectile )
+END_CLASS
+
+/*
+================
+jkSaberProjectile::Spawn( void )
+================
+*/
+void jkSaberProjectile::Spawn( void ) {
+	startingVelocity.Zero();
+	endingVelocity.Zero();
+	accelTime = 0.0f;
+	launchTime = 0;
+	killPhase = false;
+	returnPhase = false;
+	smokeKillTime = 0;
+	smokeKill = NULL;
+}
+
+/*
+=================
+jkSaberProjectile::~jkSaberProjectile
+=================
+*/
+jkSaberProjectile::~jkSaberProjectile() {
+	idEntity	*saberModel;
+	saberModel = GetNextTeamEntity();
+	if (saberModel) {
+		saberModel->Unbind();
+	}
+	//idEntity	*ownerEnt;
+	//idEntity	*saber;
+
+	//ownerEnt = owner.GetEntity();
+	//saber = static_cast<idPlayer *>( ownerEnt )->saberProjectile.GetEntity();
+
+}
+
+/*
+================
+jkSaberProjectile::Save
+================
+*/
+void jkSaberProjectile::Save( idSaveGame *savefile ) const {
+	savefile->WriteVec3( startingVelocity );
+	savefile->WriteVec3( endingVelocity );
+	savefile->WriteFloat( accelTime );
+	savefile->WriteInt( launchTime );
+	savefile->WriteBool( killPhase );
+	savefile->WriteBool( returnPhase );
+	savefile->WriteVec3( destOrg);
+	savefile->WriteInt( orbitTime );
+	savefile->WriteVec3( orbitOrg );
+	savefile->WriteInt( smokeKillTime );
+	savefile->WriteParticle( smokeKill );
+}
+
+/*
+================
+jkSaberProjectile::Restore
+================
+*/
+void jkSaberProjectile::Restore( idRestoreGame *savefile ) {
+	savefile->ReadVec3( startingVelocity );
+	savefile->ReadVec3( endingVelocity );
+	savefile->ReadFloat( accelTime );
+	savefile->ReadInt( launchTime );
+	savefile->ReadBool( killPhase );
+	savefile->ReadBool( returnPhase );
+	savefile->ReadVec3( destOrg);
+	savefile->ReadInt( orbitTime );
+	savefile->ReadVec3( orbitOrg );
+	savefile->ReadInt( smokeKillTime );
+	savefile->ReadParticle( smokeKill );
+}
+
+/*
+================
+jkSaberProjectile::Think
+================
+*/
+void jkSaberProjectile::Think( void ) {
+	float		pct;
+	idVec3		seekPos;
+	idEntity	*ownerEnt;
+
+	// Add force level stuff
+
+	if ( state == LAUNCHED ) {
+		if ( killPhase ) {
+			// orbit the mob, cascading down
+			if ( gameLocal.time < orbitTime + 1500 ) {
+				if ( !gameLocal.smokeParticles->EmitSmoke( smokeKill, smokeKillTime, gameLocal.random.CRandomFloat(), orbitOrg, mat3_identity ) ) {
+					smokeKillTime = gameLocal.time;
+				}
+			}
+		} else  {
+			if ( accelTime && gameLocal.time < launchTime + accelTime * 1000 ) {
+				pct = ( gameLocal.time - launchTime ) / ( accelTime * 1000 );
+				speed = ( startingVelocity + ( startingVelocity + endingVelocity ) * pct ).Length();
+			}
+		}
+		GuidedThink();
+		GetSeekPos( seekPos );
+
+		idMat3		axis;
+		axis = owner.GetEntity()->GetPhysics()->GetAxis();
+		SetAxis( axis );
+
+		// This does this same check in guided think
+		if ( ( seekPos - physicsObj.GetOrigin() ).Length() < 16.0f ) {
+			if ( returnPhase ) {
+				StopSound( SND_CHANNEL_ANY, false );
+				StartSound( "snd_return", SND_CHANNEL_BODY2, 0, false, NULL );
+				Hide();
+				PostEventSec( &EV_Remove, 2.0f );
+
+				ownerEnt = owner.GetEntity();
+				if ( ownerEnt && ownerEnt->IsType( idPlayer::Type ) ) {
+					static_cast<idPlayer *>( ownerEnt )->RebindWorldModel();
+					static_cast<idPlayer *>( ownerEnt )->SetSaberProjectile( NULL );
+				}
+
+				state = FIZZLED;
+			} else if ( !killPhase ){
+				//KillTarget( physicsObj.GetAxis()[0] );
+			}
+		}
+	}
+}
+
+/*
+================
+jkSaberProjectile::GetSeekPos
+================
+*/
+void jkSaberProjectile::GetSeekPos( idVec3 &out ) {
+	if ( returnPhase && owner.GetEntity() && owner.GetEntity()->IsType( idActor::Type ) ) {
+		jointHandle_t	jointnum;
+		idAnimator		*masterAnimator;
+		//idMat3 			axis;
+
+		//idActor *act = static_cast<idActor*>( owner.GetEntity() );
+		//out = act->GetEyePosition();
+		masterAnimator = owner.GetEntity()->GetAnimator();
+		jointnum = masterAnimator->GetJointHandle( "rhand" );
+		//masterAnimator->GetJointTransform(jointnum, gameLocal.time, out);
+		owner.GetEntity()->GetWorldOrigin(jointnum, out);
+		return;
+	}
+	if ( destOrg != vec3_zero ) {
+		out = destOrg;
+		return;
+	}
+
+	//idGuidedProjectile::GetSeekPos( out );
+	// Inlined
+	idEntity *enemyEnt = enemy.GetEntity();
+	if ( enemyEnt ) {
+		if ( enemyEnt->IsType( idActor::Type ) ) {
+			out = static_cast<idActor *>(enemyEnt)->GetEyePosition();
+			out.z -= 32.0f;
+		} else {
+			out = enemyEnt->GetPhysics()->GetOrigin();
+		}
+	} else {
+		idPlayer *player = static_cast<idPlayer*>( owner.GetEntity() );
+		idVec3 dir = player->viewAngles.ToForward();
+		out = player->GetPhysics()->GetOrigin() + dir*240;
+		out.z += 64.0f;
+	}
+}
+
+
+/*
+================
+jkSaberProjectile::Event_ReturnToOwner
+================
+*/
+void jkSaberProjectile::ReturnToOwner() {
+	speed *= 0.65f;
+	killPhase = false;
+	returnPhase = true;
+	smokeFlyTime = 0;
+}
+
+
+/*
+=================
+jkSaberProjectile::Launch
+=================
+*/
+void jkSaberProjectile::Launch( const idVec3 &start, const idVec3 &dir, const idVec3 &pushVelocity, const float timeSinceFire, const float launchPower, float dmgPower ) {
+	idVec3		newStart;
+	idVec3		offs;
+	idEntity	*ownerEnt;
+
+	// push it out a little
+	newStart = start + dir * spawnArgs.GetFloat( "launchDist" );
+	offs = spawnArgs.GetVector( "launchOffset", "0 0 -4" );
+	newStart += offs;
+	idGuidedProjectile::Launch( newStart, dir, pushVelocity, timeSinceFire, launchPower, dmgPower );
+	if ( enemy.GetEntity() == NULL || !enemy.GetEntity()->IsType( idActor::Type ) ) {
+		//destOrg = start + dir * 256.0f;
+		destOrg.Zero();
+		// I do sort of need this for the case of just throwing the saber and it returning, FIXME Dynamix
+	} else {
+		destOrg.Zero();
+	}
+	//physicsObj.SetClipMask( 0 ); // never collide.. think routine will decide when to detonate
+	startingVelocity = spawnArgs.GetVector( "startingVelocity", "15 0 0" );
+	endingVelocity = spawnArgs.GetVector( "endingVelocity", "1500 0 0" );
+	accelTime = spawnArgs.GetFloat( "accelTime", "5" );
+	physicsObj.SetLinearVelocity( startingVelocity.Length() * physicsObj.GetAxis()[2] );
+	launchTime = gameLocal.time;
+	killPhase = false;
+	UpdateVisuals();
+
+	ownerEnt = owner.GetEntity();
+	if ( ownerEnt && ownerEnt->IsType( idPlayer::Type ) ) {
+		static_cast<idPlayer *>( ownerEnt )->SetSaberProjectile( this );
+	}
+
+}
+
+/*
+================
+jkSaberProjectile::GuidedThink
+================
+*/
+void jkSaberProjectile::GuidedThink( void ) {
+	idVec3		dir;
+	idVec3		seekPos;
+	idVec3		velocity;
+	idVec3		nose;
+	idVec3		tmp;
+	idAngles	dirAng;
+	idAngles	diff;
+	float		dist;
+	int			i;
+
+	if ( state == LAUNCHED ) {
+		
+		//axis2 = physicsObj.GetAxis();
+		//axis = renderEntity.axis;
+		//axis2[0] = axis[0];
+		//axis2[1] = axis[1];
+
+		//SetAxis( axis2 );
+		GetSeekPos( seekPos );
+		if ( ( seekPos - physicsObj.GetOrigin() ).Length() < 16.0f ) {
+			return;
+		}
+
+		dir = seekPos - physicsObj.GetOrigin();
+		dist = dir.Normalize();
+		dirAng = dir.ToAngles();
+
+		diff = dirAng - angles;
+
+		// clamp the to the max turn rate
+		diff.Normalize180();
+		for( i = 0; i < 3; i++ ) {
+			if ( diff[ i ] > turn_max ) {
+				diff[ i ] = turn_max;
+			} else if ( diff[ i ] < -turn_max ) {
+				diff[ i ] = -turn_max;
+			}
+		}
+		angles += diff;
+
+		dir = angles.ToForward();
+		velocity = dir * speed;
+
+		physicsObj.SetLinearVelocity( velocity );
+
+
+		// Not for now, although it makes more sense to be honest
+		// align z-axis of model with the direction
+		//axis = dir.ToMat3();
+		//mp = axis[2];
+		//axis[2] = axis[0];
+		//axis[0] = -tmp;
+
+		
+	}
+	idProjectile::Think();
+}
+
+/*
+================
+jkSaberProjectile::SetReturnPhase
+================
+*/
+void jkSaberProjectile::SetReturnPhase( void ) {
+	returnPhase = true;
 }

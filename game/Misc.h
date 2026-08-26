@@ -792,30 +792,206 @@ class idAnimatedVertex : public idStaticEntity {
 public:
 	CLASS_PROTOTYPE( idAnimatedVertex );
 
-						idAnimatedVertex( void );
+								idAnimatedVertex( void );
+
+	void						Save( idSaveGame *savefile ) const;					// archives object for save game file
+	void						Restore( idRestoreGame *savefile );					// unarchives object from save game file
+
+
+	void						Spawn( void );
+
+
+	//virtual void				Hide( void );
+	//virtual void				Show( void );
+
+	virtual void				Think( void );
+
+	dnVertexAnimator *			GetVertexAnimator( void );	// returns animator object used by this entity
+	bool						GetJointWorldTransform( jointHandle_t jointHandle, int currentTime, idVec3 &offset, idMat3 &axis );
+
+	//virtual void				WriteToSnapshot( idBitMsgDelta &msg ) const;
+	//virtual void				ReadFromSnapshot( const idBitMsgDelta &msg );
+
+private:
+	dnVertexAnimator			animator;
+
+	void						Event_SetAnimation( const char *animName );
+	void						Event_GetJointHandle( const char *jointName );
+	void						Event_GetJointPos( jointHandle_t jointnum );
+	void						Event_GetJointAngle( jointHandle_t jointnum );
+	void						Event_SuppressView( idEntity *owner );
+	void						Event_AnimDone( void );
+};
+
+/*
+===============================================================================
+
+ Trip mine - weapon and world spawn
+
+===============================================================================
+*/
+
+class jkTripMine : public idEntity {
+public:
+	CLASS_PROTOTYPE( jkTripMine );
+
+						jkTripMine( void );
+						~jkTripMine();
+
+	void				Save( idSaveGame *savefile ) const;
+	void				Restore( idRestoreGame *savefile );
 
 	void				Spawn( void );
-
-	//virtual void		Hide( void );
-	//virtual void		Show( void );
-
 	virtual void		Think( void );
-
-	dnVertexAnimator *	GetVertexAnimator( void );	// returns animator object used by this entity
-	bool				GetJointWorldTransform( jointHandle_t jointHandle, int currentTime, idVec3 &offset, idMat3 &axis );
+	void				Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 
 	//virtual void		WriteToSnapshot( idBitMsgDelta &msg ) const;
 	//virtual void		ReadFromSnapshot( const idBitMsgDelta &msg );
+	//virtual bool		ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+
 
 private:
-	dnVertexAnimator	animator;
 
-	void				Event_SetAnimation( const char *animName );
-	void				Event_GetJointHandle( const char *jointName );
-	void				Event_GetJointPos( jointHandle_t jointnum );
-	void				Event_GetJointAngle( jointHandle_t jointnum );
-	void				Event_SuppressView( idEntity *owner );
-	void				Event_AnimDone( void );
+	bool					isProx;
+	bool					isArmed; // Shouldn't need this but it was broken before
+
+	qhandle_t				particleModelDefHandle;
+	qhandle_t				lightDefHandle;
+	renderEntity_t			particleRenderEntity;
+	renderLight_t			light;
+	int						particleTime;
+	int						lightTime;
+
+	idBeam*					beam;
+	idBeam*					beamTarget;
+	idClipModel *			trigger;
+
+	void					AddParticles( const char *name, bool burn );
+	void					AddLight( const char *name , bool burn );
+	void					ExplodingEffects( void );
+
+	void					Event_Activate( idEntity *activator );
+	void					Event_Arm( void );
+	void					Event_Explode( idEntity *activator  );
+	void					Event_Touch( idEntity *activator, trace_t *trace  );
+	//void					Event_TriggerTargets();
+};
+
+/*
+===============================================================================
+
+ Det Pack - weapon and world spawn
+
+===============================================================================
+*/
+
+class jkDetPack : public idEntity {
+public:
+	CLASS_PROTOTYPE( jkDetPack );
+
+						jkDetPack( void );
+						~jkDetPack();
+
+	void				Save( idSaveGame *savefile ) const;
+	void				Restore( idRestoreGame *savefile );
+
+	void				Spawn( void );
+	void				Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
+
+	//virtual void		WriteToSnapshot( idBitMsgDelta &msg ) const;
+	//virtual void		ReadFromSnapshot( const idBitMsgDelta &msg );
+	//virtual bool		ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+
+
+private:
+
+	qhandle_t				particleModelDefHandle;
+	qhandle_t				lightDefHandle;
+	renderEntity_t			particleRenderEntity;
+	renderLight_t			light;
+	int						particleTime;
+	int						lightTime;
+
+	void					AddParticles( const char *name, bool burn );
+	void					AddLight( const char *name , bool burn );
+	void					ExplodingEffects( void );
+
+	void					Event_Activate( idEntity *activator );
+	void					Event_Explode( idEntity *activator  );
+	//void					Event_TriggerTargets();
+};
+
+/*
+===============================================================================
+
+  JK version of idStaticEnt
+
+===============================================================================
+*/
+
+class jkStaticEntity : public idEntity {
+public:
+	CLASS_PROTOTYPE( jkStaticEntity );
+
+						jkStaticEntity( void );
+
+	void				Save( idSaveGame *savefile ) const;
+	void				Restore( idRestoreGame *savefile );
+
+	void				Spawn( void );
+	void				ShowEditingDialog( void );
+	virtual void		Hide( void );
+	virtual void		Show( void );
+	void				Fade( const idVec4 &to, float fadeTime );
+	virtual void		Think( void );
+
+	virtual void		WriteToSnapshot( idBitMsgDelta &msg ) const;
+	virtual void		ReadFromSnapshot( const idBitMsgDelta &msg );
+
+private:
+	void				Event_Activate( idEntity *activator );
+	//Dynamix
+	void				Event_SetFirstPerson( void );
+	void				Event_SetThirdPerson( void );
+
+	int					spawnTime;
+	bool				active;
+	idVec4				fadeFrom;
+	idVec4				fadeTo;
+	int					fadeStart;
+	int					fadeEnd;
+	bool				runGui;
+	//Dynamix
+	int					spawnFlags;
+};
+
+/*
+===============================================================================
+
+  Jk version of damagable
+
+===============================================================================
+*/
+
+class jkDamagable : public idEntity {
+public:
+	CLASS_PROTOTYPE( jkDamagable );
+
+						jkDamagable( void );
+
+	void				Save( idSaveGame *savefile ) const;
+	void				Restore( idRestoreGame *savefile );
+
+	void				Spawn( void );
+	void				Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
+
+private:
+	int					count;
+	int					nextTriggerTime;
+
+	void				BecomeBroken( idEntity *activator );
+	void				Event_BecomeBroken( idEntity *activator );
+	void				Event_RestoreDamagable( void );
 };
 
 #endif /* !__GAME_MISC_H__ */

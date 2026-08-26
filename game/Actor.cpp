@@ -37,6 +37,9 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "Actor.h"
 
+// Just for emitter I think
+#include "framework/DeclEntityDef.h"
+#include "Misc.h"
 
 /***********************************************************************
 
@@ -387,6 +390,10 @@ const idEventDef AI_GetGetUpAnim( "getGetUpAnim", NULL, 's' );
 const idEventDef AI_EnterVehicle ( "enterVehicle", "e" );
 const idEventDef AI_ExitVehicle ( "exitVehicle", "d" );
 //const idEventDef AI_PostExitVehicle ( "<exitVehicle>", "d" );
+// Dynamix/d3xp
+const idEventDef AI_StartEmitter( "startEmitter", "sss", 'e' );
+const idEventDef AI_GetEmitter( "getEmitter", "s", 'e' );
+const idEventDef AI_StopEmitter( "stopEmitter", "s" );
 
 CLASS_DECLARATION( idAFEntity_Gibbable, idActor )
 	EVENT( AI_EnableEyeFocus,			idActor::Event_EnableEyeFocus )
@@ -435,6 +442,10 @@ CLASS_DECLARATION( idAFEntity_Gibbable, idActor )
 	EVENT( AI_GetGetUpAnim,				idActor::Event_GetGetUpAnim )
 	EVENT( AI_EnterVehicle,				idActor::Event_EnterVehicle )
 	EVENT( AI_ExitVehicle,				idActor::Event_ExitVehicle )
+	// Dynamix/d3xp
+	EVENT( AI_StartEmitter,				idActor::Event_StartEmitter )
+	EVENT( AI_GetEmitter,				idActor::Event_GetEmitter )
+	EVENT( AI_StopEmitter,				idActor::Event_StopEmitter )
 END_CLASS
 
 /*
@@ -3641,4 +3652,135 @@ int idActor::PlayAnim ( int channel, const char *animname, int blendFrames ) {
 	}
 	
 	return animator.CurrentAnim( channel )->Length();
+}
+
+/*
+================
+idActor::Event_StartEmitter
+================
+*/
+void idActor::Event_StartEmitter( const char* name, const char* joint, const char* particle ) {
+	idEntity *ent = StartEmitter(name, joint, particle);
+	idThread::ReturnEntity(ent);
+}
+
+/*
+================
+idActor::Event_GetEmitter
+================
+*/
+void idActor::Event_GetEmitter( const char* name ) {
+	idThread::ReturnEntity(GetEmitter(name));
+}
+
+/*
+================
+idActor::Event_StopEmitter
+================
+*/
+void idActor::Event_StopEmitter( const char* name ) {
+	StopEmitter(name);
+}
+
+/*
+================
+idActor::StartEmitter
+================
+*/
+idEntity* idActor::StartEmitter( const char* name, const char* joint, const char* particle ) {
+
+	idEntity* existing = GetEmitter(name);
+	if(existing) {
+		return existing;
+	}
+
+	jointHandle_t jointNum;
+	jointNum = animator.GetJointHandle( joint );
+
+	idVec3 offset;
+	idMat3 axis;
+
+	GetJointWorldTransform( jointNum, gameLocal.time, offset, axis );
+
+	/*animator.GetJointTransform( jointNum, gameLocal.time, offset, axis );
+	offset = GetPhysics()->GetOrigin() + offset * GetPhysics()->GetAxis();
+	axis = axis * GetPhysics()->GetAxis();*/
+
+
+
+	idDict args;
+
+	const idDeclEntityDef *emitterDef = gameLocal.FindEntityDef( "func_emitter", false );
+	args = emitterDef->dict;
+	args.Set("model", particle);
+	args.Set( "origin", offset.ToString() );
+	args.SetBool("start_off", true);
+
+	idEntity* ent;
+	gameLocal.SpawnEntityDef(args, &ent, false);
+
+	ent->GetPhysics()->SetOrigin(offset);
+	//ent->GetPhysics()->SetAxis(axis);
+
+	// align z-axis of model with the direction
+	/*idVec3		tmp;
+	axis = (viewAxis[ 0 ] * physicsObj.GetGravityAxis()).ToMat3();
+	tmp = axis[2];
+	axis[2] = axis[0];
+	axis[0] = -tmp;
+
+	ent->GetPhysics()->SetAxis(axis);*/
+
+	//Can I fix this? Dynamix
+	//axis = physicsObj.GetGravityAxis();
+	axis = GetPhysics()->GetAxis();
+	ent->GetPhysics()->SetAxis(axis);
+
+
+	ent->GetPhysics()->GetClipModel()->SetOwner( this );
+
+
+	//Keep a reference to the emitter so we can track it
+	funcEmitter_t newEmitter;
+	strcpy(newEmitter.name, name);
+	newEmitter.particle = (idFuncEmitter*)ent;
+	newEmitter.joint = jointNum;
+	funcEmitters.Set(newEmitter.name, newEmitter);
+
+	//Bind it to the joint and make it active
+	newEmitter.particle->BindToJoint(this, jointNum, true);
+	newEmitter.particle->BecomeActive(TH_THINK);
+	newEmitter.particle->Show();
+	newEmitter.particle->PostEventMS(&EV_Activate, 0, this);
+	return newEmitter.particle;
+}
+
+/*
+================
+idActor::GetEmitter
+================
+*/
+idEntity* idActor::GetEmitter( const char* name ) {
+	funcEmitter_t* emitter;
+	funcEmitters.Get(name, &emitter);
+	if(emitter) {
+		return emitter->particle;
+	}
+	return NULL;
+}
+
+
+/*
+================
+idActor::StopEmitter
+================
+*/
+void idActor::StopEmitter( const char* name ) {
+	funcEmitter_t* emitter;
+	funcEmitters.Get(name, &emitter);
+	if(emitter) {
+		emitter->particle->Unbind();
+		emitter->particle->PostEventMS( &EV_Remove, 0 );
+		funcEmitters.Remove(name);
+	}
 }

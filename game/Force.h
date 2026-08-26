@@ -112,8 +112,8 @@ public:
 
 	// Init
 	void					Spawn( void );
-	virtual void					SetOwner( idPlayer *owner );
-	virtual idPlayer*				GetOwner( void );
+	virtual void			SetOwner( idPlayer *owner );
+	virtual idPlayer*		GetOwner( void );
 	virtual bool			ShouldConstructScriptObjectAtSpawn( void ) const;
 
 	static void				CacheWeapon( const char *weaponName );
@@ -123,8 +123,8 @@ public:
 	void					Restore( idRestoreGame *savefile );					// unarchives object from save game file
 
 	// Weapon definition management
-	virtual void					Clear( void );
-	virtual void					GetWeaponDef( const char *objectname, int ammoinclip );
+	virtual void			Clear( void );
+	virtual void			GetWeaponDef( const char *objectname, int ammoinclip );
 	bool					IsLinked( void );
 	bool					IsWorldModelReady( void );
 
@@ -189,8 +189,8 @@ public:
 	int						LowAmmo( void ) const;
 	int						AmmoRequired( void ) const;
 
-	void					StartAutoMelee( float dmgMult, int trailNum );
-	void					StopAutoMelee( void );
+	// Force
+	int						GetForceLevel( int forcePower);
 
 	virtual void			WriteToSnapshot( idBitMsgDelta &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsgDelta &msg );
@@ -417,11 +417,12 @@ public:
 	void					Event_NetReload( void );
 	void					Event_IsInvisible( void );
 	void					Event_NetEndReload( void );
+	//Dynamix
 	virtual void			Event_DoForcePower( void );
-	void					Event_UseForcePoints( float amount, int alignment, int type );
+	virtual void			Event_DoForceTick( void );
 
-	void					Event_StartAutoMelee( float dmgMult, int trailNum );
-	void					Event_StopAutoMelee( void );
+	void					Event_UseForcePoints( float amount, int alignment, int type );
+	void					Event_ForceAvailable ( void );
 
 	private:
 	jkSimpleForcePower			*currentWeaponObject;
@@ -459,6 +460,12 @@ public:
 	CLASS_PROTOTYPE( jkForceDrain );
 
 	void					Event_DoForcePower( void );
+	void					Event_DoForceTick( void );
+	void					Event_EndDrain( void );
+
+private:
+
+	idEntity*				drainTarget;
 };
 
 class jkForceGrip : public jkSimpleForcePower {
@@ -480,6 +487,7 @@ public:
 	CLASS_PROTOTYPE( jkForceLightning );
 
 	void					Event_DoForcePower( void );
+	void					Event_DoForceTick( void );
 };
 
 class jkForceProtection : public jkSimpleForcePower {

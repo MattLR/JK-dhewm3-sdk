@@ -12,6 +12,7 @@
 #include "WorldSpawn.h"
 #include "Mover.h"
 
+
 CLASS_DECLARATION( jkSimpleForcePower, jkForceLightning )
 END_CLASS
 
@@ -22,7 +23,9 @@ jkForceLightning::Event_DoForcePower
 ================
 */
 void jkForceLightning::Event_DoForcePower( void ) {
-	gameLocal.DPrintf ("Event_DoForcePower\n");
+	gameLocal.DPrintf ("Event_DoForcePower Lightning\n");
+
+	// Probably just use this for set-up related stuff later, for now it does nothing
 
 	int i, listedEntities;
 	idEntity *entityList[ MAX_GENTITIES ];
@@ -40,50 +43,135 @@ void jkForceLightning::Event_DoForcePower( void ) {
 	// so we use clip.Contents or iterate entities and test distance (simple but works for small maps).
 
 	for( i = 0; i < listedEntities; i++ ) {
-			idEntity *ent = entityList[ i ];
-			if ( !ent || ent == owner ) continue;
-			if ( ent->IsHidden() ) continue;
-			if ( ent->IsType( idWorldspawn::Type) ) continue;
-			if ( ent->IsType( idLight::Type) ) continue;
-			ent->GetName();
-			gameLocal.DPrintf(ent->GetName());
-			// basic distance check
-			idVec3 eorg = ent->GetPhysics()->GetOrigin();
-			float dist = ( eorg - origin ).Length();
-			if ( dist > pushRadius ) continue;
+		idEntity *ent = entityList[ i ];
+		if ( !ent || ent == owner ) continue;
+		if ( ent->IsHidden() ) continue;
+		if ( ent->IsType( idWorldspawn::Type) ) continue;
+		if ( ent->IsType( idLight::Type) ) continue;
+		ent->GetName();
+		gameLocal.DPrintf(ent->GetName());
+		// basic distance check
+		idVec3 eorg = ent->GetPhysics()->GetOrigin();
+		float dist = ( eorg - origin ).Length();
+		if ( dist > pushRadius ) continue;
 
-			// Direction and strength falloff (optional)
-			idVec3 dir = eorg - (origin + offset);
-			if ( dir.Length() == 0 ) {
-				dir = this->GetPhysics()->GetAxis()[0];
-			} else {
-				dir.Normalize();
+		// Direction and strength falloff
+		idVec3 dir = eorg - (origin + offset);
+		if ( dir.Length() == 0 ) {
+			dir = this->GetPhysics()->GetAxis()[0];
+		} else {
+			dir.Normalize();
+		}
+
+		float falloff = 1.0f - ( dist / pushRadius );
+		float impulse = pushStrength * falloff;
+
+
+		idPhysics *phys = ent->GetPhysics();
+		if ( !phys ) {
+			continue;
+			/*
+			idVec3 vel = phys->GetLinearVelocity();
+			vel += dir * impulse;
+		phys->SetLinearVelocity( vel );
+			*/
+		}
+
+		ent->ForcePowerResponse(this, this, dir, "push", 1, INVALID_JOINT);
+		//idMover_Binary *binary = dynamic_cast<idMover_Binary*>( ent );
+		if ( ent->IsType( idMover_Binary::Type ) ) {
+			//continue;
+			ent->Signal( SIG_TRIGGER );
+			ent->ProcessEvent( &EV_Activate, owner);
+			continue;
+		}
+		// Handle NPCs/enemies (idAI or subclasses)
+		idAI *ai = dynamic_cast<idAI*>( ent );
+		if ( ent->IsType( idAI::Type ) ) {
+	}
+	
+	idAFEntity_Base *rag = dynamic_cast<idAFEntity_Base*>( ent );
+	if ( rag && rag->IsActiveAF() ) {
+		// Add impulses to all articulated bodies
+		for ( int j = 0; j < rag->GetAFPhysics()->GetNumBodies(); j++ ) {
+			rag->GetAFPhysics()->GetBody( j )->AddForce( dir, dir * impulse * 0.5f );
+		}
+		continue;
+	}
+			
+
+	// Damage small amount to ragdollable entities or apply other effects
+	if ( ent->fl.takedamage ) {
+		// Create damage structure
+		int dmg = (int)( 10.0f * falloff );
+		if ( dmg > 0 ) {
+				idEntity *inflictor = this;
+				ent->Damage( this, inflictor, dir, "push_power", dmg, 0 );
 			}
+		}
+	}
+}
 
-			float falloff = 1.0f - ( dist / pushRadius );
-			float impulse = pushStrength * falloff;
+/*
+================
+jkForceLightning::Event_DoForceTick
+================
+*/
+void jkForceLightning::Event_DoForceTick( void ) {
+	gameLocal.DPrintf ("Event_DoForceTick Lightning\n");
 
+	int i, listedEntities;
+	idEntity *entityList[ MAX_GENTITIES ];
+	int pushRadius = 400;
 
-			idPhysics *phys = ent->GetPhysics();
-			if ( !phys ) {
-				continue;
-				/*
-				idVec3 vel = phys->GetLinearVelocity();
-				vel += dir * impulse;
-				phys->SetLinearVelocity( vel );
-				*/
-			}
-			ent->ForcePowerResponse(this, this, dir, "push", 1, INVALID_JOINT);
-			//idMover_Binary *binary = dynamic_cast<idMover_Binary*>( ent );
-			if ( ent->IsType( idMover_Binary::Type ) ) {
-				//continue;
-				ent->Signal( SIG_TRIGGER );
-				ent->ProcessEvent( &EV_Activate, owner);
-				continue;
-			}
-			// Handle NPCs/enemies (idAI or subclasses)
-			idAI *ai = dynamic_cast<idAI*>( ent );
-			if ( ent->IsType( idAI::Type ) ) {
+	// FIXME box should be in front
+	listedEntities = gameLocal.EntitiesWithinRadius( GetPhysics()->GetOrigin(), pushRadius, entityList, MAX_GENTITIES );
+
+	int pushStrength = 1000;
+	idVec3 origin = GetPhysics()->GetOrigin();
+	idVec3 offset( 0.0f, 40.0f, 0.0f );
+
+	// Need to change this to check for obstruction and that they're actually in front
+	// of us, also level 1 and 2 are just a forward trace really
+
+	for( i = 0; i < listedEntities; i++ ) {
+		idEntity *ent = entityList[ i ];
+		if ( !ent || ent == owner ) continue;
+		if ( ent->IsHidden() ) continue;
+		if ( ent->IsType( idWorldspawn::Type) ) continue;
+		if ( ent->IsType( idMover_Binary::Type ) ) continue; //idMover?
+		// Might be cool to be able to blow up lights later
+		if ( ent->IsType( idLight::Type) ) continue;
+
+		//gameLocal.DPrintf(ent->GetName());
+
+		// basic distance check
+		// I guess they can be further away if they're at the edge of the box
+
+		idVec3 eorg = ent->GetPhysics()->GetOrigin();
+		float dist = ( eorg - origin ).Length();
+		if ( dist > pushRadius ) continue;
+
+		// Probably don't need falloff for lightning, but leave it for now
+		idVec3 dir = eorg - (origin + offset);
+		if ( dir.Length() == 0 ) {
+			dir = this->GetPhysics()->GetAxis()[0];
+		} else {
+			dir.Normalize();
+		}
+
+		float falloff = 1.0f - ( dist / pushRadius );
+		float impulse = pushStrength * falloff;
+
+		// Is there anything without physics in the game anyway?
+		idPhysics *phys = ent->GetPhysics();
+		if ( !phys ) {
+			continue;
+		}
+
+		// Decide if you want to send joint for lightning
+		if ( ent->ForcePowerResponse(this, this, dir, "lightning", 1, INVALID_JOINT)) {
+			continue;
 		}
 		
 		idAFEntity_Base *rag = dynamic_cast<idAFEntity_Base*>( ent );
@@ -92,18 +180,22 @@ void jkForceLightning::Event_DoForcePower( void ) {
 			for ( int j = 0; j < rag->GetAFPhysics()->GetNumBodies(); j++ ) {
 				rag->GetAFPhysics()->GetBody( j )->AddForce( dir, dir * impulse * 0.5f );
 			}
+
 			continue;
 		}
-			
 
-			// Damage small amount to ragdollable entities or apply other effects
+		// Damage small amount to ragdollable entities or apply other effects
+		// Probably fine to keep this, it should blow stuff up really
+		// Don't care about falloff really though
 		if ( ent->fl.takedamage ) {
-			// Create damage structure
-			int dmg = (int)( 10.0f * falloff );
+			float dmg = ( 10.0f * falloff );
 			if ( dmg > 0 ) {
 					idEntity *inflictor = this;
 					ent->Damage( this, inflictor, dir, "push_power", dmg, 0 );
 				}
 			}
 		}
+
+		idThread::ReturnInt( true );
+		idThread::ReturnInt( false ); // Only if no target or no force points?
 }

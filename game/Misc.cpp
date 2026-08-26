@@ -485,6 +485,7 @@ void idDamagable::Spawn( void ) {
 	}
 
 	fl.takedamage = true;
+	// Dynamix
 	GetPhysics()->SetContents( CONTENTS_SOLID );
 	if (spawnFlags == 0) {
 		GetPhysics()->SetContents( 0 );
@@ -1438,7 +1439,7 @@ void idAnimated::Event_LaunchMissiles( const char *projectilename, const char *s
 ===============================================================================
 */
 
-//Dynamix - Move these to entity?
+// Dynamix - Move these to entity?
 const idEventDef EV_SetFirstPerson( "setFirstPerson", NULL );
 const idEventDef EV_SetThirdPerson( "setThirdPerson", NULL );
 
@@ -1501,9 +1502,7 @@ idStaticEntity::Spawn
 void idStaticEntity::Spawn( void ) {
 	bool solid;
 	bool hidden;
-	int spawnflags;
 
-	spawnArgs.GetInt("spawnflags", "0", spawnflags );
 	// an inline static model will not do anything at all
 	if ( spawnArgs.GetBool( "inline" ) || gameLocal.world->spawnArgs.GetBool( "inlineAllStatics" ) ) {
 		Hide();
@@ -1512,11 +1511,6 @@ void idStaticEntity::Spawn( void ) {
 
 	solid = spawnArgs.GetBool( "solid" );
 	hidden = spawnArgs.GetBool( "hide" );
-	//temp for testing dynamix FIXME
-	if (spawnflags & 1) {
-		hidden = true;
-		fl.hidden = true;
-	}
 
 	if ( solid && !hidden ) {
 		GetPhysics()->SetContents( CONTENTS_SOLID );
@@ -3310,19 +3304,69 @@ CLASS_DECLARATION( idStaticEntity, idAnimatedVertex )
 	EVENT( EV_AnimDoneVert,			idAnimatedVertex::Event_AnimDone )
 END_CLASS
 
+/*
+================
+idAnimatedVertex::idAnimatedVertex
+================
+*/
 idAnimatedVertex::idAnimatedVertex () {
 }
 
+/*
+================
+idAnimatedVertex::Spawn
+================
+*/
 void idAnimatedVertex::Spawn ( void ) {
 	idStr model = spawnArgs.GetString( "model" );
 	renderEntity.hModel = animator.SetModel(model);
+	GetPhysics()->SetContents( 0 );
+
 
 	animator.PlayAnim("all", true);
 	BecomeActive( TH_THINK );
 }
 
+/*
+================
+idAnimatedVertex::Save
+
+archives object for save game file
+================
+*/
+void idAnimatedVertex::Save( idSaveGame *savefile ) const {
+	animator.Save( savefile );
+}
+
+/*
+================
+idAnimatedEntity::Restore
+
+unarchives object from save game file
+================
+*/
+void idAnimatedVertex::Restore( idRestoreGame *savefile ) {
+	animator.Restore( savefile );
+
+	// check if the entity has an MD5 model
+	//if ( animator.ModelHandle() ) {
+	//	// set the callback to update the joints
+	//	renderEntity.callback = idEntity::ModelCallback;
+		//animator.GetJoints( &renderEntity.numJoints, &renderEntity.joints );
+		//animator.GetBounds( gameLocal.time, renderEntity.bounds );
+	//	if ( modelDefHandle != -1 ) {
+	//		gameRenderWorld->UpdateEntityDef( modelDefHandle, &renderEntity );
+	//	}
+	//}
+}
+
+/*
+================
+idAnimatedVertex::Think
+================
+*/
 void idAnimatedVertex::Think ( void ) {
-	idStaticEntity::Think();
+	//idStaticEntity::Think();
 	UpdateVisuals();
 	animator.Update();
 	renderEntity.shaderParms[SHADERPARM_MD3_FRAME] = animator.GetCurrentFrame();
@@ -3434,4 +3478,1105 @@ void idAnimatedVertex::Event_AnimDone( void ) {
 	} else {
 		idThread::ReturnInt( false );
 	}
+}
+
+/*
+===============================================================================
+
+  jkTripMine - will probably inherit from a base class later with detpack and others
+
+===============================================================================
+*/
+
+const idEventDef EV_Arm( "<Arm>");
+
+CLASS_DECLARATION( idEntity, jkTripMine )
+	EVENT( EV_Activate,	jkTripMine::Event_Explode )
+	EVENT( EV_Arm,		jkTripMine::Event_Arm )
+	EVENT( EV_Touch,	jkTripMine::Event_Touch )
+END_CLASS
+
+/*
+================
+jkTripMine::jkTripMine
+================
+*/
+jkTripMine::jkTripMine( void ) {
+	particleModelDefHandle = -1;
+	lightDefHandle = -1;
+	memset( &particleRenderEntity, 0, sizeof( particleRenderEntity ) );
+	memset( &light, 0, sizeof( light ) );
+	particleTime = 0;
+	lightTime = 0;
+	beam = NULL;
+	beamTarget = NULL;
+	trigger = NULL;
+	isProx = false;
+	isArmed = false;
+}
+
+/*
+================
+jkTripMine::~jkTripMine
+================
+*/
+jkTripMine::~jkTripMine() {
+
+	// This caused a bug on map exit if the beam was still there
+	// I was just copying this from the grabber but I think that had to manually handle the deletion whereas if it's part of
+	// an entity it's handled already somehow
+
+	// Maybe the weapon destructor is called first so beam is going to exist there, can I check the entity exists maybe?
+
+	//if ( beam ) {
+	//	beam->Hide();
+	//}
+
+	//if ( beamTarget ) {
+	//	beamTarget->Hide();
+	//}
+
+	//if ( beamTarget ) {
+	//	delete beamTarget;
+	//}
+
+	//if ( beam ) {
+	//	delete beam;
+	//}
+
+	if ( particleModelDefHandle >= 0 ){
+		gameRenderWorld->FreeEntityDef( particleModelDefHandle );
+	}
+
+	if ( lightDefHandle >= 0 ) {
+		gameRenderWorld->FreeLightDef( lightDefHandle );
+	}
+
+	if ( trigger ) {
+		delete trigger;
+	}
+}
+
+/*
+================
+jkTripMine::Save
+================
+*/
+void jkTripMine::Save( idSaveGame *savefile ) const {
+	//savefile->WriteInt( count );
+	//savefile->WriteInt( nextTriggerTime );
+}
+
+/*
+================
+jkTripMine::Restore
+================
+*/
+void jkTripMine::Restore( idRestoreGame *savefile ) {
+	//savefile->ReadInt( count );
+	//savefile->ReadInt( nextTriggerTime );
+}
+
+/*
+================
+jkTripMine::Spawn
+================
+*/
+void jkTripMine::Spawn( void ) {
+	health = spawnArgs.GetInt( "health", "15" );
+	//get starton
+	
+	isProx = spawnArgs.GetBool( "mode" );
+	
+	fl.takedamage = true;
+	particleModelDefHandle = -1;
+	lightDefHandle = -1;
+	lightTime = 0;
+	particleTime = 0;
+	memset( &particleRenderEntity, 0, sizeof( particleRenderEntity ) );
+	memset( &light, 0, sizeof( light ) );
+
+	GetPhysics()->SetContents( CONTENTS_SOLID );
+	
+	idAngles dir = GetPhysics()->GetAxis().ToAngles();
+	idVec3 dir2 = dir.ToForward();
+
+	trace_t t;
+	idBounds bounds = idBounds( idVec3( -4, -4, -4 ), idVec3( 4, 4, 4 ) );
+	idVec3	origin = GetPhysics()->GetOrigin();
+	//gameLocal.clip.TraceBounds( t, origin, origin, bounds, MASK_SOLID, this );
+
+	gameLocal.clip.TracePoint( t, origin, (origin + dir2*5), MASK_SOLID, this );
+
+	SetAngles(t.c.normal.ToAngles());
+	
+	PostEventSec(&EV_Arm, 1);
+}
+
+/*
+================
+jkTripMine::Think
+================
+*/
+void jkTripMine::Think( void ) {
+	idEntity::Think();
+	
+	// Prox just uses trigger so can skip entirely I think
+	if ( isProx ) {
+		return;
+	}
+	
+	if ( (thinkFlags & TH_THINK) && isArmed ) {
+		trace_t t;
+		idVec3 origin = GetPhysics()->GetOrigin();
+		idVec3 end = beamTarget->GetPhysics()->GetOrigin();
+		gameLocal.clip.TracePoint( t, origin, end, MASK_MONSTERSOLID, this);
+		if (t.fraction < 1.0f) {
+    		Event_Explode( this );
+		}
+	}
+}
+
+/*
+================
+jkTripMine::AddParticles
+================
+*/
+void jkTripMine::AddParticles( const char *name, bool burn ) {
+	if ( name && *name ) {
+		if ( particleModelDefHandle >= 0 ){
+			gameRenderWorld->FreeEntityDef( particleModelDefHandle );
+		}
+		memset( &particleRenderEntity, 0, sizeof ( particleRenderEntity ) );
+		const idDeclModelDef *modelDef = static_cast<const idDeclModelDef *>( declManager->FindType( DECL_MODELDEF, name ) );
+		if ( modelDef ) {
+			particleRenderEntity.origin = GetPhysics()->GetAbsBounds().GetCenter();
+			particleRenderEntity.axis = mat3_identity;
+			particleRenderEntity.hModel = modelDef->ModelHandle();
+			float rgb = ( burn ) ? 0.0f : 1.0f;
+			particleRenderEntity.shaderParms[ SHADERPARM_RED ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_GREEN ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_BLUE ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_ALPHA ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = -MS2SEC( gameLocal.realClientTime );
+			particleRenderEntity.shaderParms[ SHADERPARM_DIVERSITY ] = ( burn ) ? 1.0f : gameLocal.random.RandomInt( 90 );
+			if ( !particleRenderEntity.hModel ) {
+				particleRenderEntity.hModel = renderModelManager->FindModel( name );
+			}
+			particleModelDefHandle = gameRenderWorld->AddEntityDef( &particleRenderEntity );
+			if ( burn ) {
+				BecomeActive( TH_THINK );
+			}
+			particleTime = gameLocal.realClientTime;
+		}
+	}
+}
+
+/*
+================
+jkTripMine::AddLight
+================
+*/
+void jkTripMine::AddLight( const char *name, bool burn ) {
+	if ( lightDefHandle >= 0 ){
+		gameRenderWorld->FreeLightDef( lightDefHandle );
+	}
+	memset( &light, 0, sizeof ( light ) );
+	light.axis = mat3_identity;
+	light.lightRadius.x = spawnArgs.GetFloat( "light_radius" );
+	light.lightRadius.y = light.lightRadius.z = light.lightRadius.x;
+	light.origin = GetPhysics()->GetOrigin();
+	light.origin.z += 128;
+	light.pointLight = true;
+	light.shader = declManager->FindMaterial( name );
+	light.shaderParms[ SHADERPARM_RED ] = 2.0f;
+	light.shaderParms[ SHADERPARM_GREEN ] = 2.0f;
+	light.shaderParms[ SHADERPARM_BLUE ] = 2.0f;
+	light.shaderParms[ SHADERPARM_ALPHA ] = 2.0f;
+	lightDefHandle = gameRenderWorld->AddLightDef( &light );
+	lightTime = gameLocal.realClientTime;
+	BecomeActive( TH_THINK );
+}
+
+
+/*
+================
+jkTripMine::ExplodingEffects
+================
+*/
+void jkTripMine::ExplodingEffects( void ) {
+	const char *temp;
+
+	StartSound( "snd_explode", SND_CHANNEL_ANY, 0, false, NULL );
+
+	temp = spawnArgs.GetString( "model_detonate" );
+	if ( *temp != '\0' ) {
+		AddParticles( temp, false );
+	}
+
+	temp = spawnArgs.GetString( "mtr_explode_light_shader" );
+	if ( *temp != '\0' ) {
+		AddLight( temp, false );
+	}
+
+	temp = spawnArgs.GetString( "mtr_burnmark" );
+	if ( *temp != '\0' ) {
+		gameLocal.ProjectDecal( GetPhysics()->GetOrigin(), GetPhysics()->GetGravity(), 128.0f, true, 96.0f, temp );
+	}
+}
+
+/*
+================
+jkTripMine::Killed
+================
+*/
+void jkTripMine::Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location ) {
+
+	if ( IsHidden()) {
+		return;
+	}
+
+	if ( gameLocal.isServer ) {
+		idBitMsg	msg;
+		byte		msgBuf[MAX_EVENT_PARAM_SIZE];
+
+		msg.Init( msgBuf, sizeof( msgBuf ) );
+		msg.WriteInt( gameLocal.time );
+		//ServerSendEvent( EVENT_EXPLODE, &msg, false, -1 );
+	}
+
+	// do this before applying radius damage so the ent can trace to any damagable ents nearby
+	Hide();
+
+	// Crashes if not armed - oops
+	//if mode 0
+	if (!isProx) {
+		//BecomeInactive( TH_THINK );
+		isArmed = false;
+		// Beam target remove crashes it for some reason? Am i still thiking and it tries to read it?
+		// Have to check isArmed as well for some reason even though I'm already checking the think flags?
+		// Exploding effects resets the thinkflag, fix this properly 
+		// FIXME Dynamix
+		if (beamTarget) {
+		beamTarget->Hide();
+		beamTarget->PostEventMS(&EV_Remove, 5);
+		}
+
+		if (beam) {
+		beam->Hide();
+		beam->PostEventMS(&EV_Remove, 5);
+		}
+
+		
+	}
+	//GetPhysics()->SetContents( 0 );
+
+	const char *splash = spawnArgs.GetString( "def_splash_damage", "damage_explosion" );
+	if ( splash && *splash ) {
+		gameLocal.RadiusDamage( GetPhysics()->GetOrigin(), this, attacker, this, this, splash );
+	}
+
+	ExplodingEffects( );
+
+	CancelEvents( &EV_Touch );
+	CancelEvents( &EV_Explode );
+	CancelEvents( &EV_Activate );
+
+	//if ( spawnArgs.GetBool( "triggerTargets" ) ) {
+	//	ActivateTargets( this );
+	//}
+
+	PostEventMS( &EV_Remove, 1500 );
+}
+
+/*
+================
+jkTripMine::Event_Arm
+================
+*/
+void jkTripMine::Event_Arm( void ) {
+	//Should probably get the trace from spawn? - Dynamix FIXME
+	// multiplayer stuff
+	
+	// Prox mine mode 
+	if (isProx) {
+		idBounds		bounds;
+
+		//CalcTriggerBounds( triggersize, bounds );
+		bounds = GetPhysics()->GetAbsBounds();
+
+		int best = 0;
+		for ( int i = 1 ; i < 3 ; i++ ) {
+			if ( bounds[1][ i ] - bounds[0][ i ] < bounds[1][ best ] - bounds[0][ best ] ) {
+				best = i;
+			}
+		}
+		//bounds[0][ best ] -= 12;
+		bounds[1][ best ] += 12;
+		bounds[0] -= GetPhysics()->GetOrigin();
+		bounds[1] -= GetPhysics()->GetOrigin();
+
+		// create a trigger clip model
+		trigger = new idClipModel( idTraceModel( bounds ) );
+		trigger->Link( gameLocal.clip, this, 255, GetPhysics()->GetOrigin(), mat3_identity );
+		trigger->SetContents( CONTENTS_TRIGGER );
+
+		BecomeActive( TH_THINK );
+		return;
+	}
+
+	trace_t t;
+	idBounds bounds = idBounds( idVec3( -4, -4, -4 ), idVec3( 4, 4, 4 ) );
+	idVec3	origin = GetPhysics()->GetOrigin();
+	gameLocal.clip.TraceBounds( t, origin, origin, bounds, MASK_SOLID, this );
+
+	idVec3 end = origin + (t.c.normal * 256.0f);
+	gameLocal.clip.TracePoint( t, origin, end, MASK_SOLID, this);
+
+	idDict args;
+
+	if ( !beamTarget ) {
+			args.SetVector( "origin", t.endpos );
+			args.SetBool( "start_off", false );
+			beamTarget = ( idBeam * )gameLocal.SpawnEntityType( idBeam::Type, &args );
+	}
+
+	if ( !beam ) {
+			args.Clear();
+			args.Set( "target", beamTarget->name.c_str() );
+			args.SetVector( "origin", origin );
+			args.SetBool( "start_off", false );
+			args.Set( "width", "1" );
+			args.Set( "skin", "textures/sfx/beam_bluetest" );
+			args.Set( "_color", "0.0235 0.843 0.969 0.2" );
+			beam = ( idBeam * )gameLocal.SpawnEntityType( idBeam::Type, &args );
+			beam->SetShaderParm( 6, 1.0f );
+	}
+
+	args.Clear();
+
+	BecomeActive( TH_THINK );
+	isArmed = true;
+}
+
+/*
+================
+jkTripMine::Event_Explode
+================
+*/
+void jkTripMine::Event_Explode( idEntity *activator ) {
+	Killed( activator, activator, 0, vec3_origin, 0 );
+	return;
+	const char *temp;
+
+	if ( spawnArgs.GetString( "def_damage", "damage_explosion", &temp ) ) {
+		gameLocal.RadiusDamage( GetPhysics()->GetOrigin(), activator, activator, this, this, temp );
+	}
+
+	StartSound( "snd_explode", SND_CHANNEL_ANY, 0, false, NULL );
+
+	// Show() calls UpdateVisuals, so we don't need to call it ourselves after setting the shaderParms
+	renderEntity.shaderParms[SHADERPARM_RED]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_GREEN]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_BLUE]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_ALPHA]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_TIMEOFFSET] = -MS2SEC( gameLocal.time );
+	renderEntity.shaderParms[SHADERPARM_DIVERSITY]	= 0.0f;
+	Show();
+
+	PostEventMS( &EV_Remove, 2000 );
+
+	ActivateTargets( activator );
+}
+
+/*
+=====================
+idAI::Event_Touch
+=====================
+*/
+void jkTripMine::Event_Touch( idEntity *other, trace_t *trace ) {
+
+	if ( trigger && trace->c.id == trigger->GetId() ) {
+		ProcessEvent(&EV_Activate, other);
+	}
+}
+
+/*
+===============================================================================
+
+  jkDetPack - will probably inherit from a base class later with trip mine and others
+
+===============================================================================
+*/
+
+CLASS_DECLARATION( idEntity, jkDetPack )
+	EVENT( EV_Activate,	jkDetPack::Event_Explode )
+END_CLASS
+
+/*
+================
+jkDetPack::jkDetPack
+================
+*/
+jkDetPack::jkDetPack( void ) {
+	//count = 0;
+	//nextTriggerTime = 0;
+	particleModelDefHandle = -1;
+	lightDefHandle = -1;
+	memset( &particleRenderEntity, 0, sizeof( particleRenderEntity ) );
+	memset( &light, 0, sizeof( light ) );
+	particleTime = 0;
+	lightTime = 0;
+}
+
+/*
+================
+jkDetPack::~jkDetPack
+================
+*/
+jkDetPack::~jkDetPack() {
+	if ( particleModelDefHandle >= 0 ){
+		gameRenderWorld->FreeEntityDef( particleModelDefHandle );
+	}
+	if ( lightDefHandle >= 0 ) {
+		gameRenderWorld->FreeLightDef( lightDefHandle );
+	}
+}
+
+/*
+================
+jkDetPack::Save
+================
+*/
+void jkDetPack::Save( idSaveGame *savefile ) const {
+	//savefile->WriteInt( count );
+	//savefile->WriteInt( nextTriggerTime );
+}
+
+/*
+================
+jkDetPack::Restore
+================
+*/
+void jkDetPack::Restore( idRestoreGame *savefile ) {
+	//savefile->ReadInt( count );
+	//savefile->ReadInt( nextTriggerTime );
+}
+
+/*
+================
+jkDetPack::Spawn
+================
+*/
+void jkDetPack::Spawn( void ) {
+	health = spawnArgs.GetInt( "health", "5" );
+	fl.takedamage = true;
+	particleModelDefHandle = -1;
+	lightDefHandle = -1;
+	lightTime = 0;
+	particleTime = 0;
+	memset( &particleRenderEntity, 0, sizeof( particleRenderEntity ) );
+	memset( &light, 0, sizeof( light ) );
+
+	GetPhysics()->SetContents( CONTENTS_SOLID );
+
+	trace_t t;
+	idBounds bounds = idBounds( idVec3( -4, -4, -4 ), idVec3( 4, 4, 4 ) );
+	idVec3	origin = GetPhysics()->GetOrigin();
+	gameLocal.clip.TraceBounds( t, origin, origin, bounds, MASK_SOLID, this );
+	//gameLocal.clip.TracePoint( t, origin, origin, MASK_SOLID, this );
+
+	SetOrigin(origin + t.c.normal*4 );
+	//SetAngles(t.c.normal.ToAngles());
+	//renderEntity.axis
+}
+
+/*
+================
+jkDetPack::AddParticles
+================
+*/
+void jkDetPack::AddParticles( const char *name, bool burn ) {
+	if ( name && *name ) {
+		if ( particleModelDefHandle >= 0 ){
+			gameRenderWorld->FreeEntityDef( particleModelDefHandle );
+		}
+		memset( &particleRenderEntity, 0, sizeof ( particleRenderEntity ) );
+		const idDeclModelDef *modelDef = static_cast<const idDeclModelDef *>( declManager->FindType( DECL_MODELDEF, name ) );
+		if ( modelDef ) {
+			particleRenderEntity.origin = GetPhysics()->GetAbsBounds().GetCenter();
+			particleRenderEntity.axis = mat3_identity;
+			particleRenderEntity.hModel = modelDef->ModelHandle();
+			float rgb = ( burn ) ? 0.0f : 1.0f;
+			particleRenderEntity.shaderParms[ SHADERPARM_RED ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_GREEN ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_BLUE ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_ALPHA ] = rgb;
+			particleRenderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = -MS2SEC( gameLocal.realClientTime );
+			particleRenderEntity.shaderParms[ SHADERPARM_DIVERSITY ] = ( burn ) ? 1.0f : gameLocal.random.RandomInt( 90 );
+			if ( !particleRenderEntity.hModel ) {
+				particleRenderEntity.hModel = renderModelManager->FindModel( name );
+			}
+			particleModelDefHandle = gameRenderWorld->AddEntityDef( &particleRenderEntity );
+			if ( burn ) {
+				BecomeActive( TH_THINK );
+			}
+			particleTime = gameLocal.realClientTime;
+		}
+	}
+}
+
+/*
+================
+jkDetPack::AddLight
+================
+*/
+void jkDetPack::AddLight( const char *name, bool burn ) {
+	if ( lightDefHandle >= 0 ){
+		gameRenderWorld->FreeLightDef( lightDefHandle );
+	}
+	memset( &light, 0, sizeof ( light ) );
+	light.axis = mat3_identity;
+	light.lightRadius.x = spawnArgs.GetFloat( "light_radius" );
+	light.lightRadius.y = light.lightRadius.z = light.lightRadius.x;
+	light.origin = GetPhysics()->GetOrigin();
+	light.origin.z += 128;
+	light.pointLight = true;
+	light.shader = declManager->FindMaterial( name );
+	light.shaderParms[ SHADERPARM_RED ] = 2.0f;
+	light.shaderParms[ SHADERPARM_GREEN ] = 2.0f;
+	light.shaderParms[ SHADERPARM_BLUE ] = 2.0f;
+	light.shaderParms[ SHADERPARM_ALPHA ] = 2.0f;
+	lightDefHandle = gameRenderWorld->AddLightDef( &light );
+	lightTime = gameLocal.realClientTime;
+	BecomeActive( TH_THINK );
+}
+
+
+/*
+================
+jkDetPack::ExplodingEffects
+================
+*/
+void jkDetPack::ExplodingEffects( void ) {
+	const char *temp;
+
+	StartSound( "snd_explode", SND_CHANNEL_ANY, 0, false, NULL );
+
+	temp = spawnArgs.GetString( "model_detonate" );
+	if ( *temp != '\0' ) {
+		AddParticles( temp, false );
+	}
+
+	temp = spawnArgs.GetString( "mtr_explode_light_shader" );
+	if ( *temp != '\0' ) {
+		AddLight( temp, false );
+	}
+
+	temp = spawnArgs.GetString( "mtr_burnmark" );
+	if ( *temp != '\0' ) {
+		gameLocal.ProjectDecal( GetPhysics()->GetOrigin(), GetPhysics()->GetGravity(), 128.0f, true, 96.0f, temp );
+	}
+}
+
+/*
+================
+jkDetPack::Killed
+================
+*/
+void jkDetPack::Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location ) {
+
+	if ( IsHidden()) {
+		return;
+	}
+
+	if ( gameLocal.isServer ) {
+		idBitMsg	msg;
+		byte		msgBuf[MAX_EVENT_PARAM_SIZE];
+
+		msg.Init( msgBuf, sizeof( msgBuf ) );
+		msg.WriteInt( gameLocal.time );
+		//ServerSendEvent( EVENT_EXPLODE, &msg, false, -1 );
+	}
+
+	// do this before applying radius damage so the ent can trace to any damagable ents nearby
+	Hide();
+	GetPhysics()->SetContents( 0 );
+
+	const char *splash = spawnArgs.GetString( "def_splash_damage", "damage_explosion" );
+	if ( splash && *splash ) {
+		gameLocal.RadiusDamage( GetPhysics()->GetOrigin(), this, attacker, this, this, splash );
+	}
+
+	ExplodingEffects( );
+
+	CancelEvents( &EV_Explode );
+	CancelEvents( &EV_Activate );
+
+	if ( spawnArgs.GetBool( "triggerTargets" ) ) {
+		ActivateTargets( this );
+	}
+
+	// clearfromPlayerList or whatever - FIXME dynamix
+	// On the player side it just decrements through and sends the event then removes so probably fine any way
+
+	//exploding barrel has a think to manage the lights and particle effects, fix later or use projectile stuff instead
+	PostEventMS( &EV_Remove, 500 );
+}
+
+/*
+================
+jkDetPack::Event_Explode
+================
+*/
+void jkDetPack::Event_Explode( idEntity *activator ) {
+	Killed( activator, activator, 0, vec3_origin, 0 );
+	return;
+	const char *temp;
+
+	if ( spawnArgs.GetString( "def_damage", "damage_explosion", &temp ) ) {
+		gameLocal.RadiusDamage( GetPhysics()->GetOrigin(), activator, activator, this, this, temp );
+	}
+
+	StartSound( "snd_explode", SND_CHANNEL_ANY, 0, false, NULL );
+
+	// Show() calls UpdateVisuals, so we don't need to call it ourselves after setting the shaderParms
+	renderEntity.shaderParms[SHADERPARM_RED]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_GREEN]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_BLUE]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_ALPHA]		= 1.0f;
+	renderEntity.shaderParms[SHADERPARM_TIMEOFFSET] = -MS2SEC( gameLocal.time );
+	renderEntity.shaderParms[SHADERPARM_DIVERSITY]	= 0.0f;
+	Show();
+
+	PostEventMS( &EV_Remove, 500 );
+
+	ActivateTargets( activator );
+}
+
+/*
+===============================================================================
+
+	jkStaticEntity
+
+	Some static entities may be optimized into inline geometry by dmap
+
+===============================================================================
+*/
+
+CLASS_DECLARATION( idEntity, jkStaticEntity )
+	EVENT( EV_Activate,				jkStaticEntity::Event_Activate )
+END_CLASS
+
+/*
+===============
+jkStaticEntity::jkStaticEntity
+===============
+*/
+jkStaticEntity::jkStaticEntity( void ) {
+	spawnTime = 0;
+	active = false;
+	fadeFrom.Set( 1, 1, 1, 1 );
+	fadeTo.Set( 1, 1, 1, 1 );
+	fadeStart = 0;
+	fadeEnd	= 0;
+	runGui = false;
+}
+
+/*
+===============
+jkStaticEntity::Save
+===============
+*/
+void jkStaticEntity::Save( idSaveGame *savefile ) const {
+	savefile->WriteInt( spawnTime );
+	savefile->WriteBool( active );
+	savefile->WriteVec4( fadeFrom );
+	savefile->WriteVec4( fadeTo );
+	savefile->WriteInt( fadeStart );
+	savefile->WriteInt( fadeEnd );
+	savefile->WriteBool( runGui );
+}
+
+/*
+===============
+jkStaticEntity::Restore
+===============
+*/
+void jkStaticEntity::Restore( idRestoreGame *savefile ) {
+	savefile->ReadInt( spawnTime );
+	savefile->ReadBool( active );
+	savefile->ReadVec4( fadeFrom );
+	savefile->ReadVec4( fadeTo );
+	savefile->ReadInt( fadeStart );
+	savefile->ReadInt( fadeEnd );
+	savefile->ReadBool( runGui );
+}
+
+/*
+===============
+jkStaticEntity::Spawn
+===============
+*/
+void jkStaticEntity::Spawn( void ) {
+	bool solid;
+	bool hidden;
+
+	spawnArgs.GetInt("spawnflags", "0", spawnFlags );
+	// an inline static model will not do anything at all
+	if ( spawnArgs.GetBool( "inline" ) || gameLocal.world->spawnArgs.GetBool( "inlineAllStatics" ) ) {
+		Hide();
+		return;
+	}
+
+	solid = spawnArgs.GetBool( "solid" );
+	hidden = spawnArgs.GetBool( "hide" );
+	//Dynamix - do I need to set the flag as well?
+	if (spawnFlags & 1) {
+		hidden = true;
+		fl.hidden = true;
+	}
+
+	if ( solid && !hidden ) {
+		GetPhysics()->SetContents( CONTENTS_SOLID );
+	} else {
+		GetPhysics()->SetContents( 0 );
+	}
+
+	spawnTime = gameLocal.time;
+	active = false;
+
+	idStr model = spawnArgs.GetString( "model" );
+	if ( model.Find( ".prt" ) >= 0 ) {
+		// we want the parametric particles out of sync with each other
+		renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = gameLocal.random.RandomInt( 32767 );
+	}
+
+	fadeFrom.Set( 1, 1, 1, 1 );
+	fadeTo.Set( 1, 1, 1, 1 );
+	fadeStart = 0;
+	fadeEnd	= 0;
+
+	// NOTE: this should be used very rarely because it is expensive
+	runGui = spawnArgs.GetBool( "runGui" );
+	if ( runGui ) {
+		BecomeActive( TH_THINK );
+	}
+}
+
+/*
+================
+jkStaticEntity::ShowEditingDialog
+================
+*/
+void jkStaticEntity::ShowEditingDialog( void ) {
+	common->InitTool( EDITOR_PARTICLE, &spawnArgs );
+}
+/*
+================
+jkStaticEntity::Think
+================
+*/
+void jkStaticEntity::Think( void ) {
+	idEntity::Think();
+	if ( thinkFlags & TH_THINK ) {
+		if ( runGui && renderEntity.gui[0] ) {
+			idPlayer *player = gameLocal.GetLocalPlayer();
+			if ( player ) {
+				if ( !player->objectiveSystemOpen ) {
+					renderEntity.gui[0]->StateChanged( gameLocal.time, true );
+					if ( renderEntity.gui[1] ) {
+						renderEntity.gui[1]->StateChanged( gameLocal.time, true );
+					}
+					if ( renderEntity.gui[2] ) {
+						renderEntity.gui[2]->StateChanged( gameLocal.time, true );
+					}
+				}
+			}
+		}
+		if ( fadeEnd > 0 ) {
+			idVec4 color;
+			if ( gameLocal.time < fadeEnd ) {
+				color.Lerp( fadeFrom, fadeTo, ( float )( gameLocal.time - fadeStart ) / ( float )( fadeEnd - fadeStart ) );
+			} else {
+				color = fadeTo;
+				fadeEnd = 0;
+				BecomeInactive( TH_THINK );
+			}
+			SetColor( color );
+		}
+	}
+}
+
+/*
+================
+jkStaticEntity::Fade
+================
+*/
+void jkStaticEntity::Fade( const idVec4 &to, float fadeTime ) {
+	GetColor( fadeFrom );
+	fadeTo = to;
+	fadeStart = gameLocal.time;
+	fadeEnd = gameLocal.time + SEC2MS( fadeTime );
+	BecomeActive( TH_THINK );
+}
+
+/*
+================
+jkStaticEntity::Hide
+================
+*/
+void jkStaticEntity::Hide( void ) {
+	idEntity::Hide();
+	GetPhysics()->SetContents( 0 );
+}
+
+/*
+================
+jkStaticEntity::Show
+================
+*/
+void jkStaticEntity::Show( void ) {
+	idEntity::Show();
+	if ( spawnArgs.GetBool( "solid" ) ) {
+		GetPhysics()->SetContents( CONTENTS_SOLID );
+	}
+}
+
+/*
+================
+jkStaticEntity::Event_Activate
+================
+*/
+void jkStaticEntity::Event_Activate( idEntity *activator ) {
+	idStr activateGui;
+
+	spawnTime = gameLocal.time;
+	active = !active;
+
+	const idKeyValue *kv = spawnArgs.FindKey( "hide" );
+	//if ( kv || kv2 ) { FIXME dynamix temp for testing before I make a new class for usables
+		if ( IsHidden() ) {
+			Show();
+		} else {
+			Hide();
+		}
+	//}
+
+	renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = -MS2SEC( spawnTime );
+	renderEntity.shaderParms[5] = active;
+	// this change should be a good thing, it will automatically turn on
+	// lights etc.. when triggered so that does not have to be specifically done
+	// with trigger parms.. it MIGHT break things so need to keep an eye on it
+	renderEntity.shaderParms[ SHADERPARM_MODE ] = ( renderEntity.shaderParms[ SHADERPARM_MODE ] ) ?  0.0f : 1.0f;
+	BecomeActive( TH_UPDATEVISUALS );
+}
+
+/*
+================
+jkStaticEntity::WriteToSnapshot
+================
+*/
+void jkStaticEntity::WriteToSnapshot( idBitMsgDelta &msg ) const {
+	GetPhysics()->WriteToSnapshot( msg );
+	WriteBindToSnapshot( msg );
+	WriteColorToSnapshot( msg );
+	WriteGUIToSnapshot( msg );
+	msg.WriteBits( IsHidden()?1:0, 1 );
+}
+
+/*
+================
+jkStaticEntity::ReadFromSnapshot
+================
+*/
+void jkStaticEntity::ReadFromSnapshot( const idBitMsgDelta &msg ) {
+	bool hidden;
+
+	GetPhysics()->ReadFromSnapshot( msg );
+	ReadBindFromSnapshot( msg );
+	ReadColorFromSnapshot( msg );
+	ReadGUIFromSnapshot( msg );
+	hidden = msg.ReadBits( 1 ) == 1;
+	if ( hidden != IsHidden() ) {
+		if ( hidden ) {
+			Hide();
+		} else {
+			Show();
+		}
+	}
+	if ( msg.HasChanged() ) {
+		UpdateVisuals();
+	}
+}
+
+/*
+===============================================================================
+
+  jkDamagable
+
+===============================================================================
+*/
+
+CLASS_DECLARATION( idEntity, jkDamagable )
+	EVENT( EV_Activate,			jkDamagable::Event_BecomeBroken )
+	EVENT( EV_RestoreDamagable,	jkDamagable::Event_RestoreDamagable )
+END_CLASS
+
+/*
+================
+jkDamagable::jkDamagable
+================
+*/
+jkDamagable::jkDamagable( void ) {
+	count = 0;
+	nextTriggerTime = 0;
+}
+
+/*
+================
+jkDamagable::Save
+================
+*/
+void jkDamagable::Save( idSaveGame *savefile ) const {
+	savefile->WriteInt( count );
+	savefile->WriteInt( nextTriggerTime );
+}
+
+/*
+================
+jkDamagable::Restore
+================
+*/
+void jkDamagable::Restore( idRestoreGame *savefile ) {
+	savefile->ReadInt( count );
+	savefile->ReadInt( nextTriggerTime );
+}
+
+/*
+================
+jkDamagable::Spawn
+================
+*/
+void jkDamagable::Spawn( void ) {
+	idStr broken;
+	int spawnFlags = spawnArgs.GetInt("spawnflags");
+
+	health = spawnArgs.GetInt( "health", "5" );
+	spawnArgs.GetInt( "count", "1", count );
+	nextTriggerTime = 0;
+
+	// make sure the model gets cached
+	spawnArgs.GetString( "broken", "", broken );
+	if ( broken.Length() && !renderModelManager->CheckModel( broken ) ) {
+		gameLocal.Error( "jkDamagable '%s' at (%s): cannot load broken model '%s'", name.c_str(), GetPhysics()->GetOrigin().ToString(0), broken.c_str() );
+	}
+
+	if (health > 1) {
+	fl.takedamage = true;
+	}
+	// Dynamix
+	GetPhysics()->SetContents( CONTENTS_SOLID );
+	if (spawnFlags == 0) {
+		GetPhysics()->SetContents( 0 );
+	}
+}
+
+/*
+================
+jkDamagable::BecomeBroken
+================
+*/
+void jkDamagable::BecomeBroken( idEntity *activator ) {
+	float	forceState;
+	int		numStates;
+	int		cycle;
+	float	wait;
+
+	if ( gameLocal.time < nextTriggerTime ) {
+		return;
+	}
+
+	spawnArgs.GetFloat( "wait", "0.1", wait );
+	nextTriggerTime = gameLocal.time + SEC2MS( wait );
+	if ( count > 0 ) {
+		count--;
+		if ( !count ) {
+			fl.takedamage = false;
+		} else {
+			health = spawnArgs.GetInt( "health", "5" );
+		}
+	}
+
+	idStr	broken;
+
+	spawnArgs.GetString( "broken", "", broken );
+	if ( broken.Length() ) {
+		SetModel( broken );
+	}
+
+	// offset the start time of the shader to sync it to the gameLocal time
+	renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = -MS2SEC( gameLocal.time );
+
+	spawnArgs.GetInt( "numstates", "1", numStates );
+	spawnArgs.GetInt( "cycle", "0", cycle );
+	spawnArgs.GetFloat( "forcestate", "0", forceState );
+
+	// set the state parm
+	if ( cycle ) {
+		renderEntity.shaderParms[ SHADERPARM_MODE ]++;
+		if ( renderEntity.shaderParms[ SHADERPARM_MODE ] > numStates ) {
+			renderEntity.shaderParms[ SHADERPARM_MODE ] = 0;
+		}
+	} else if ( forceState ) {
+		renderEntity.shaderParms[ SHADERPARM_MODE ] = forceState;
+	} else {
+		renderEntity.shaderParms[ SHADERPARM_MODE ] = gameLocal.random.RandomInt( numStates ) + 1;
+	}
+
+	renderEntity.shaderParms[ SHADERPARM_TIMEOFFSET ] = -MS2SEC( gameLocal.time );
+
+	ActivateTargets( activator );
+	//Temp for testing FIXME dynamix
+	Hide();
+	GetPhysics()->SetContents( 0 );
+	
+	if ( spawnArgs.GetBool( "hideWhenBroken" ) ) {
+		Hide();
+		PostEventMS( &EV_RestoreDamagable, nextTriggerTime - gameLocal.time );
+		BecomeActive( TH_THINK );
+	}
+}
+
+/*
+================
+jkDamagable::Killed
+================
+*/
+void jkDamagable::Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location ) {
+	if ( gameLocal.time < nextTriggerTime ) {
+		health += damage;
+		return;
+	}
+
+	BecomeBroken( attacker );
+}
+
+/*
+================
+jkDamagable::Event_BecomeBroken
+================
+*/
+void jkDamagable::Event_BecomeBroken( idEntity *activator ) {
+	BecomeBroken( activator );
+}
+
+/*
+================
+jkDamagable::Event_RestoreDamagable
+================
+*/
+void jkDamagable::Event_RestoreDamagable( void ) {
+	health = spawnArgs.GetInt( "health", "5" );
+	Show();
 }

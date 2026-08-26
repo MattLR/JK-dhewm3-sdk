@@ -1050,7 +1050,7 @@ idAI::Think
 */
 void idAI::Think( void ) {
 	// if we are completely closed off from the player, don't do anything at all
-	if ( CheckDormant() ) {
+	if ( CheckDormant() || ai_freeze.GetBool() ) {
 		return;
 	}
 
@@ -1186,7 +1186,9 @@ void idAI::LinkScriptVariables( void ) {
 	AI_OBSTACLE_IN_PATH.LinkTo(	scriptObject, "AI_OBSTACLE_IN_PATH" );
 	AI_PUSHED.LinkTo(			scriptObject, "AI_PUSHED" );
 	//Dynamix
-	AI_DISABLED_TIME.LinkTo(		scriptObject, "AI_DISABLED_TIME" );
+	AI_DISABLED.LinkTo(			scriptObject, "AI_DISABLED" );
+	AI_DISABLED_TIME.LinkTo(	scriptObject, "AI_DISABLED_TIME" );
+	AI_RECOVERY_ANIM.LinkTo(	scriptObject, "AI_RECOVERY_ANIM" );
 }
 
 /*
@@ -3254,6 +3256,14 @@ inflictor, attacker, dir, and point can be NULL for environmental effects
 bool idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const idVec3 &dir,
 	const char *forceDefName, const int forceLevel, const int location ) {
 	gameLocal.DPrintf ("ForcePowerResponse idAI\n");
+
+	idStr objectType;
+	objectType = scriptObject.GetTypeName();
+
+	// Only for humanoid for now, states don't exist for others
+	if (objectType != "enemy_humanoid") {
+		return false;
+	}
 	
 	if (static_cast<idActor*>(attacker)->team == team) {
 		return true;
@@ -3287,7 +3297,7 @@ bool idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const id
 		//continue;
 
 		//Early outs
-		if (health <= 0) {
+		if ( health <= 0 ) {
 			return false;
 		}
 		//Fix this later Dynamix
@@ -3295,6 +3305,7 @@ bool idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const id
 			return true;
 		}
 
+		AI_RECOVERY_ANIM = TRUE;
 		disabledAnim = "knockdown";
 		getUpAnim = "BOTH_GETUP1";
 		AI_DISABLED_TIME = 3.0f + gameLocal.random.RandomFloat();
@@ -3326,7 +3337,7 @@ bool idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const id
 		//Don't know if I'm calculating it wrong but using the actual z component doesn't work very well 
 		vel.z = 250 * falloff;
 		phys->SetLinearVelocity( vel );
-			
+		AI_RECOVERY_ANIM = TRUE;
 		disabledAnim = "BOTH_KNOCKDOWN3";
 		getUpAnim = "BOTH_GETUP3";
 		AI_DISABLED_TIME = 3.0f + gameLocal.random.RandomFloat();
@@ -3337,15 +3348,73 @@ bool idAI::ForcePowerResponse( idEntity *inflictor, idEntity *attacker, const id
 		state = GetScriptFunction( "state_Gripped" );
 		SetState(state);
 		return true;
+	} else if ( idStr::Icmp(forceDefName, "lightning") == 0 ) {
+		// Early outs
+		if (health <= 0) {
+			return false;
+		}
+
+		idPhysics *phys = this->GetPhysics();
+		int pushRadius = 400;
+		int pushStrength = 1000;
+		idVec3 inflictorOrigin = inflictor->GetPhysics()->GetOrigin();
+		idVec3 thisOrigin = phys->GetOrigin();
+		idVec3 offset( 0.0f, 0.0f, -15.0f );
+		float dist = ( thisOrigin - inflictorOrigin ).Length();
+		
+		float falloff = 0.0f + ( dist / pushRadius );
+		float impulse = pushStrength * falloff;
+		idVec3 vel = phys->GetLinearVelocity();
+		vel += dir * impulse;
+		//Don't know if I'm calculating it wrong but using the actual z component doesn't work very well 
+		vel.z = 250 * falloff;
+		phys->SetLinearVelocity( vel );
+
+		this->Damage( inflictor, attacker, dir, "damage_fp_lightning", 1.0f, 0 );
+
+
+		return true;
 	} else if ( idStr::Icmp(forceDefName, "mindtrick") == 0 ) {
 		team = static_cast<idActor*>(attacker)->team;
 		rank = -1;
+
+		StartEmitter( "trickEmit", "jaw", "bfgcore.prt");
+
 		ClearEnemy();
 		PostEventSec( &AI_EndMindTrick, 10);
-		//PostEventMS clear mindtrick
 		return true;
 	} else if ( idStr::Icmp(forceDefName, "drain") == 0 ) {
+		if (AI_DEAD) { return FALSE;}
+		AI_RECOVERY_ANIM = FALSE;
+		disabledAnim = "BOTH_FORCE_DRAIN_GRABBED";
+		AI_DISABLED = TRUE;
+		// Should be var not magic number
+		// Also might change how all this works anyway
+		AI_DISABLED_TIME = 1.0f;
+		state = GetScriptFunction( "state_Disabled" );
+		SetState(state);
+		return true;
 	}
+
+	return false;
+}
+
+bool idAI::ForcePowerResponse( const char *forceDefName, const int forceLevel ) {
+	
+	if ( idStr::Icmp(forceDefName, "drainTick") == 0 ) {
+		if ( AI_DEAD ) { return false; }
+		gameLocal.DPrintf ("ForcePowerResponse Tick Drain idAI\n");
+		this->Damage( this, this, idVec3(0, 0, 0), "damage_fp_drain", 1.0f, 0 );
+
+		AI_DISABLED_TIME = AI_DISABLED_TIME + 0.2f;
+		return true;
+	} else if ( idStr::Icmp(forceDefName, "drainEnd") == 0 ) {
+		if ( AI_DEAD ) { return false; }
+		disabledAnim = "";
+		AI_DISABLED_TIME = 0.0f;
+		return true;
+	}
+
 	return false;
 }
 
