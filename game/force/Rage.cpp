@@ -38,7 +38,9 @@ void jkForceRage::Event_DoForcePower( void ) {
 
 	struct statusEffect s = {RAGEDOT, 5, gameLocal.time + 10000, 2000, gameLocal.time + 2000 };
 	owner->statusEffects.Append(s);
-	owner->hud->SetStateString( "activeForceBG", Icon() );
+	if ( owner->hud ) {
+		owner->hud->SetStateString( "activeForceBG", Icon() );
+	}
 
 	// Fix this, it's dumb Dynamix
 	owner->PostEventSec(&EV_Player_EndDisable, 1);

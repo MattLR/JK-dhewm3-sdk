@@ -480,7 +480,7 @@ void idPlayerView::SingleView( idUserInterface *hud, const renderView_t *view ) 
 
 		// Not sure if this is right Dynamix
 		if ( player->devMenuOpen ) {
-		player->devMenu->Redraw( gameLocal.time );
+			player->devMenu->Redraw( gameLocal.time );
 		}
 		
 		player->DrawHUD( hud );

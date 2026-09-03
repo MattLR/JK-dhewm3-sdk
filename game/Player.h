@@ -750,6 +750,8 @@ private:
 	int						lastTeleFX;
 	unsigned int			lastSnapshotSequence;	// track state hitches on clients
 	bool					weaponCatchup;			// raise up the weapon silently ( state catchups )
+	// Dynamix
+	bool					forceCatchup;			// same but for force ( state catchups )
 	int						MPAim;					// player num in aim
 	int						lastMPAim;
 	int						lastMPAimTime;			// last time the aim changed

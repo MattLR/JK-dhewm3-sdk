@@ -31,7 +31,9 @@ void jkForceSpeed::Event_DoForcePower( void ) {
 				if ( owner->UseForcePoints(50) ) {
 					struct statusEffect s = {FORCESPEED, 1.33f, gameLocal.time + 10000};
 					owner->statusEffects.Append(s);
-					owner->hud->SetStateString( "activeForceBG", Icon() );
+					if ( owner->hud ) {
+						owner->hud->SetStateString( "activeForceBG", Icon() );
+					}
 				}
 			break;
 		case 1:
@@ -39,7 +41,9 @@ void jkForceSpeed::Event_DoForcePower( void ) {
 				if ( owner->UseForcePoints(50) ) {
 					struct statusEffect s = {FORCESPEED, 1.33f, gameLocal.time + 10000};
 					owner->statusEffects.Append(s);
-					owner->hud->SetStateString( "activeForceBG", Icon() );
+					if ( owner->hud ) {
+						owner->hud->SetStateString( "activeForceBG", Icon() );
+					}
 				}
 			break;
 		case 3:
@@ -47,7 +51,9 @@ void jkForceSpeed::Event_DoForcePower( void ) {
 				if ( owner->UseForcePoints(50) ) {
 					struct statusEffect s = {FORCESPEED, 1.33f, gameLocal.time + 10000};
 					owner->statusEffects.Append(s);
-					owner->hud->SetStateString( "activeForceBG", Icon() );
+					if ( owner->hud ) {
+						owner->hud->SetStateString( "activeForceBG", Icon() );
+					}
 				}
 			break;
 		default:

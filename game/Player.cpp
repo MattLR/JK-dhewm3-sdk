@@ -1078,6 +1078,8 @@ idPlayer::idPlayer() {
 	hud						= NULL;
 	objectiveSystem			= NULL;
 	objectiveSystemOpen		= false;
+	devMenu					= NULL;
+	devMenuOpen				= false;
 
 	heartRate				= BASE_HEARTRATE;
 	heartInfo.Init( 0, 0, 0, 0 );
@@ -1225,6 +1227,7 @@ idPlayer::idPlayer() {
 	lastSpectateChange		= 0;
 	lastTeleFX				= -9999;
 	weaponCatchup			= false;
+	forceCatchup			= false;
 	lastSnapshotSequence	= 0;
 
 	MPAim					= -1;
@@ -1371,10 +1374,12 @@ void idPlayer::SetForcePower( int weaponIndex ) {
 	//forcePower.GetEntity->Init( this, forceDef, currentForcePower );
 	//forcePower->CallSpawn( );		
 
-	forcePower.GetEntity()->Clear();
+	//forcePower.GetEntity()->Clear();
 	delete forcePower.GetEntity();
+	forcePower = NULL;
 	//currentWeaponObject = static_cast<rvmWeaponObject*>(typeInfo->CreateInstance());
-	forcePower = static_cast<jkSimpleForcePower *>( gameLocal.SpawnEntityType( *typeInfo, NULL ) );
+
+	forcePower = static_cast<jkSimpleForcePower *>( gameLocal.SpawnEntityType( *typeInfo, NULL, true ) );
 	//forcePower = static_cast<jkSimpleForcePower *>( gameLocal.SpawnEntityType( jkForcePush::Type, NULL ) );
 	//forcePower = static_cast<jkSimpleForcePower *>(typeInfo->CreateInstance());
 	forcePower.GetEntity()->SetOwner( this );
@@ -1389,6 +1394,9 @@ void idPlayer::SetForcePower( int weaponIndex ) {
 	//if ( !weaponEnabled ) {
 	//	Event_DisableWeapon( );
 	//}
+
+	//forcePower.GetEntity() = static_cast<jkSimpleForcePower *>( typeInfo->CreateInstance() );
+	//forcePower.GetEntity()->Init( this, weaponDef, currentWeapon, isStrogg );
 	
 }
 
@@ -1505,7 +1513,7 @@ void idPlayer::Init( void ) {
 	SetupForcePowerEntity();
 	currentWeapon = -1;
 	previousWeapon = -1;
-	//Don't know why this is a thing, Dynamix
+	// Don't know why this is a thing, Dynamix
 	currentForcePower			= -1;
 	previousForcePower			= -1;
 
@@ -1762,12 +1770,14 @@ void idPlayer::Spawn( void ) {
 		if ( !gameLocal.isClient ) {
 			// set yourself ready to spawn. idMultiplayerGame will decide when/if appropriate and call SpawnFromSpawnSpot
 			SetupWeaponEntity();
+			SetupForcePowerEntity();
 			SpawnFromSpawnSpot();
 			forceRespawn = true;
 			assert( spectating );
 		}
 	} else {
 		SetupWeaponEntity();
+		SetupForcePowerEntity();
 		SpawnFromSpawnSpot();
 	}
 
@@ -1811,7 +1821,9 @@ void idPlayer::Spawn( void ) {
 	}
 
 	if ( hud ) {
-		UpdateHudWeapon();
+		// Breaks multiplayer, disabling for now - Dynamix FIXME
+		//UpdateHudWeapon();
+		//UpdateHudForcePower();
 		hud->StateChanged( gameLocal.time );
 	}
 
@@ -1883,6 +1895,9 @@ Release any resources used by the player.
 idPlayer::~idPlayer() {
 	delete weapon.GetEntity();
 	weapon = NULL;
+
+	delete forcePower.GetEntity();
+	forcePower = NULL;
 }
 
 /*
@@ -2927,6 +2942,11 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 	if ( !hud ) {
 		return;
 	}
+
+	if ( gameLocal.isMultiplayer ) {
+		// Breaks multiplayer spawning for clients FIXME Dynamix
+		return;
+	}
  	/* Original code for multiplayer weapon carousel, replaced
 	for ( int i = 0; i < MAX_WEAPONS; i++ ) {
 		const char *weapnum = va( "def_weapon%d", i );
@@ -2998,13 +3018,13 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 			//Combine these or get rid of second one
 			if (j == idealWeapon) { 
 				done = true;
-				gameLocal.DPrintf("Done j == iw\n");
+				//gameLocal.DPrintf("Done j == iw\n");
 				break; 
 			}
 			//I think this is a pointless check in theory
 			if ( j == k ) {
 				done = true;
-				gameLocal.DPrintf("Done j == k\n");
+				//gameLocal.DPrintf("Done j == k\n");
 				break;
 			}
 			weapnum = va( "def_weapon%d", j );
@@ -3027,9 +3047,9 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 						gameLocal.Error( " 2No 'icon' set on '%s'.", weap );
 					}
 					const char *iconName = va( "forceIconBG%d", filledIcons );
-					gameLocal.DPrintf("HIT RIGHT%d\n", j);
-					gameLocal.DPrintf("FI:%d\n", filledIcons);
-					gameLocal.DPrintf("Icon%s\n", icon2);
+					//gameLocal.DPrintf("HIT RIGHT%d\n", j);
+					//gameLocal.DPrintf("FI:%d\n", filledIcons);
+					//gameLocal.DPrintf("Icon%s\n", icon2);
 					//getweapondef and icon string when I can be bothered
 					hud->SetStateString( iconName,  icon2 );
 					filledIcons++;
@@ -3041,10 +3061,10 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 		while ( !filledLeft ) {
 			//This runs second so check we're not done before cycling
 			k--;
-			if (k == -1) { k = MAX_WEAPONS; }
+			if (k < 0) { k = MAX_WEAPONS; }
 			if ( k == j ) {
 				done = true;
-				gameLocal.DPrintf("Done k == j\n");
+				//gameLocal.DPrintf("Done k == j\n");
 				break;
 			}
 			weapnum = va( "def_weapon%d", k );
@@ -3063,10 +3083,10 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 				}
 				if ( weap && *weap ) {
 					const char *iconName = va( "forceIconBG%d", filledIcons );
-					gameLocal.DPrintf("HIT LEFT%d\n", k);
-					gameLocal.DPrintf("FI:%d\n", filledIcons);
-					gameLocal.DPrintf("IName%s\n", iconName);
-					gameLocal.DPrintf("Icon%s\n", icon2);
+					//gameLocal.DPrintf("HIT LEFT%d\n", k);
+					//gameLocal.DPrintf("FI:%d\n", filledIcons);
+					//gameLocal.DPrintf("IName%s\n", iconName);
+					//gameLocal.DPrintf("Icon%s\n", icon2);
 					//getweapondef and icon string when I can be bothered
 					hud->SetStateString( iconName,  icon2 );
 					filledIcons++;
@@ -3076,7 +3096,7 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 		}
 	}
 	//Put this into the while loop at some point FIXME
-	if (filledIcons < 6) {
+	if ( filledIcons < 6 ) {
 		while ( filledIcons < 7 ) {
 			const char *iconName = va( "forceIconBG%d", filledIcons );
 			hud->SetStateString( iconName,  "" );
@@ -3087,8 +3107,8 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 	//hud->SetStateInt("showForceIcons", 0);
 	//hud->SetStateInt("showWeaponIcons", 1);
 	CancelEvents( &EV_Player_HideWeaponIcons );
-	PostEventMS(&EV_Player_HideForceIcons, 1);
-	PostEventMS(&EV_Player_ShowWeaponIcons, 1);
+	PostEventMS( &EV_Player_HideForceIcons, 1 );
+	PostEventMS( &EV_Player_ShowWeaponIcons, 1 );
 	PostEventSec( &EV_Player_HideWeaponIcons, 3.0f );
 
 	if ( flashWeapon ) {
@@ -3115,6 +3135,12 @@ void idPlayer::UpdateHudForcePower( bool flashWeapon ) {
 	if ( !hud ) {
 		return;
 	}
+
+	if ( gameLocal.isMultiplayer ) {
+		// Breaks multiplayer spawning for clients FIXME Dynamix
+		return;
+	}
+	
 	/* Original multiplayer weapon carousel based code, replaced
 	for ( int i = 0; i < 12; i++ ) {
 		//const char *weapnum = va( "def_weapon%d", 1 );
@@ -4036,8 +4062,10 @@ void idPlayer::UpdateStatusEffects( void ) {
 			}
 
 			statusEffects.RemoveIndex(i);
-			//Dynamix temp for testing FIXME
-			hud->SetStateString( "activeForceBG", "" );
+			// Dynamix temp for testing FIXME
+			if ( hud ) {
+				hud->SetStateString( "activeForceBG", "" );
+			}
 			continue;
 		}
 
@@ -4864,7 +4892,9 @@ void idPlayer::Force_Combat( void ) {
 	if ( influenceActive || gameLocal.inCinematic || privateCameraView ) {
 		return;
 	}
-	forcePower.GetEntity()->RaiseWeapon();
+	if ( forcePower.GetEntity() ) {
+		forcePower.GetEntity()->RaiseWeapon();
+	}
 	/*
 	if ( forcePower.GetEntity()->IsReloading() ) {
 		if ( !AI_RELOAD ) {
@@ -4878,14 +4908,14 @@ void idPlayer::Force_Combat( void ) {
 	*/
 	idStr entName;
 	if ( idealForcePower != currentForcePower ) {
-		if ( weaponCatchup ) {
+		if ( !forcePower.GetEntity() || forceCatchup ) {
 			assert( gameLocal.isClient );
 
 			currentForcePower = idealForcePower;
 			weaponGone = false;
 			SetForcePower( idealForcePower );
-			entName = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
-			forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ currentForcePower ] );
+			//entName = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
+			//forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ currentForcePower ] );
 			//animPrefix.Strip( "weapon_" );
 
 			forcePower.GetEntity()->NetCatchup();
@@ -4894,7 +4924,7 @@ void idPlayer::Force_Combat( void ) {
 				SetState( newstate );
 				UpdateScript();
 			}
-			weaponCatchup = false;
+			forceCatchup = false;
 		} else {
 			if ( forcePower.GetEntity()->IsReady() ) {
 				forcePower.GetEntity()->PutAway();
@@ -4910,8 +4940,8 @@ void idPlayer::Force_Combat( void ) {
 				currentForcePower = idealForcePower;
 				weaponGone = false;
 				SetForcePower( idealForcePower );
-				entName = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
-				forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ currentForcePower ] );
+				//entName = spawnArgs.GetString( va( "def_fp%d", currentForcePower ) );
+				//forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ currentForcePower ] );
 				//animPrefix.Strip( "weapon_" );
 
 				forcePower.GetEntity()->Raise();
@@ -5148,10 +5178,11 @@ void idPlayer::UpdateForcePower( void ) {
 	// always make sure the weapon is correctly setup before accessing it
 	if ( !forcePower.GetEntity()->IsLinked() ) {
 		if ( idealForcePower != -1 ) {
-			idStr entName = spawnArgs.GetString( va( "def_fp%d", idealForcePower ) );
-			forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ idealForcePower ]);
+			// Dynamix FIXME - move to Q4 style
 			SetForcePower( idealForcePower );
-			//forceCatchup = false;
+			//idStr entName = spawnArgs.GetString( va( "def_fp%d", idealForcePower ) );
+			//forcePower.GetEntity()->GetWeaponDef( entName, inventory.clip[ idealForcePower ]);
+			forceCatchup = false;
 			assert( forcePower.GetEntity()->IsLinked() );
 		} else {
 			return;
@@ -7571,7 +7602,7 @@ void idPlayer::Think( void ) {
 		// position the view weapon, among other things
 		CalculateFirstPersonView();
 
-		// this may use firstPersonView, or a thirdPeoson / camera view
+		// this may use firstPersonView, or a thirdPerson / camera view
 		CalculateRenderView();
 
 		thinkFlags |= TH_PHYSICS;
@@ -7930,7 +7961,7 @@ void idPlayer::DamageFeedback( idEntity *victim, idEntity *inflictor, int &damag
 
 /*
 ==============
-idPlayer::GetWeaponDef
+idPlayer::GetForceDef
 ==============
 */
 const idDeclEntityDef* idPlayer::GetForceDef ( int forceIndex ) {
@@ -9388,6 +9419,9 @@ void idPlayer::ClientPredictionThink( void ) {
 
 	if ( !gameLocal.inCinematic && weapon.GetEntity() && ( health > 0 ) && !( gameLocal.isMultiplayer && spectating ) ) {
 		UpdateWeapon();
+	}
+
+	if ( !gameLocal.inCinematic && forcePower.GetEntity() && ( health > 0 ) && !( gameLocal.isMultiplayer && spectating ) ) {
 		UpdateForcePower();
 	}
 
@@ -9395,6 +9429,7 @@ void idPlayer::ClientPredictionThink( void ) {
 
 	if ( gameLocal.isNewFrame ) {
 		UpdatePowerUps();
+		UpdateStatusEffects();
 	}
 
 	UpdateDeathSkin( false );
@@ -9535,12 +9570,16 @@ void idPlayer::WriteToSnapshot( idBitMsgDelta &msg ) const {
 	msg.WriteDeltaFloat( 0.0f, deltaViewAngles[1] );
 	msg.WriteDeltaFloat( 0.0f, deltaViewAngles[2] );
 	msg.WriteShort( health );
+	msg.WriteFloat( forcePool );
 	msg.WriteBits( gameLocal.ServerRemapDecl( -1, DECL_ENTITYDEF, lastDamageDef ), gameLocal.entityDefBits );
 	msg.WriteDir( lastDamageDir, 9 );
 	msg.WriteShort( lastDamageLocation );
 	msg.WriteBits( idealWeapon, idMath::BitsForInteger( MAX_WEAPONS ) );
 	msg.WriteBits( inventory.weapons, MAX_WEAPONS );
 	msg.WriteBits( weapon.GetSpawnId(), 32 );
+	msg.WriteBits( idealForcePower, idMath::BitsForInteger( MAX_FORCE_POWERS ) );
+	msg.WriteBits( inventory.forcePowers, MAX_FORCE_POWERS );
+	msg.WriteBits( forcePower.GetSpawnId(), 32 );
 	msg.WriteBits( spectator, idMath::BitsForInteger( MAX_CLIENTS ) );
 	msg.WriteBits( lastHitToggle, 1 );
 	msg.WriteBits( weaponGone, 1 );
@@ -9554,7 +9593,7 @@ idPlayer::ReadFromSnapshot
 ================
 */
 void idPlayer::ReadFromSnapshot( const idBitMsgDelta &msg ) {
-	int		i, oldHealth, newIdealWeapon, weaponSpawnId;
+	int		i, oldHealth, newIdealWeapon, weaponSpawnId, newIdealForcePower, forcePowerSpawnId;
 	bool	newHitToggle, stateHitch;
 
 	if ( snapshotSequence - lastSnapshotSequence > 1 ) {
@@ -9572,12 +9611,16 @@ void idPlayer::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 	deltaViewAngles[1] = msg.ReadDeltaFloat( 0.0f );
 	deltaViewAngles[2] = msg.ReadDeltaFloat( 0.0f );
 	health = msg.ReadShort();
+	forcePool = msg.ReadFloat();
 	lastDamageDef = gameLocal.ClientRemapDecl( DECL_ENTITYDEF, msg.ReadBits( gameLocal.entityDefBits ) );
 	lastDamageDir = msg.ReadDir( 9 );
 	lastDamageLocation = msg.ReadShort();
 	newIdealWeapon = msg.ReadBits( idMath::BitsForInteger( MAX_WEAPONS ) );
 	inventory.weapons = msg.ReadBits( MAX_WEAPONS );
 	weaponSpawnId = msg.ReadBits( 32 );
+	newIdealForcePower = msg.ReadBits( idMath::BitsForInteger( MAX_FORCE_POWERS ) );
+	inventory.forcePowers = msg.ReadBits( MAX_FORCE_POWERS );
+	forcePowerSpawnId = msg.ReadBits( 32 );
 	spectator = msg.ReadBits( idMath::BitsForInteger( MAX_CLIENTS ) );
 	newHitToggle = msg.ReadBits( 1 ) != 0;
 	weaponGone = msg.ReadBits( 1 ) != 0;
@@ -9593,6 +9636,15 @@ void idPlayer::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 		}
 		currentWeapon = -1;
 	}
+
+	if ( forcePower.SetSpawnId( forcePowerSpawnId ) ) {
+		if ( forcePower.GetEntity() ) {
+			// maintain ownership locally
+			forcePower.GetEntity()->SetOwner( this );
+		}
+		currentForcePower = -1;
+	}
+
 	// if not a local client assume the client has all ammo types
 	if ( entityNumber != gameLocal.localClientNum ) {
 		for( i = 0; i < AMMO_NUMTYPES; i++ ) {
@@ -9665,6 +9717,14 @@ void idPlayer::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 		UpdateHudWeapon();
 	}
 
+	if ( idealForcePower != newIdealForcePower ) {
+		if ( stateHitch ) {
+			forceCatchup = true;
+		}
+		idealForcePower = newIdealForcePower;
+		UpdateHudForcePower();
+	}
+
 	if ( lastHitToggle != newHitToggle ) {
 		SetLastHitTime( gameLocal.realClientTime );
 	}
@@ -9685,6 +9745,7 @@ void idPlayer::WritePlayerStateToSnapshot( idBitMsgDelta &msg ) const {
 	msg.WriteByte( bobCycle );
 	msg.WriteInt( stepUpTime );
 	msg.WriteFloat( stepUpDelta );
+	msg.WriteShort( inventory.forcePowers );
 	msg.WriteShort( inventory.weapons );
 	msg.WriteByte( inventory.armor );
 
@@ -9707,6 +9768,7 @@ void idPlayer::ReadPlayerStateFromSnapshot( const idBitMsgDelta &msg ) {
 	bobCycle = msg.ReadByte();
 	stepUpTime = msg.ReadInt();
 	stepUpDelta = msg.ReadFloat();
+	inventory.forcePowers = msg.ReadShort();
 	inventory.weapons = msg.ReadShort();
 	inventory.armor = msg.ReadByte();
 
@@ -10320,8 +10382,8 @@ void idPlayer::NextForce( void ) {
 	} */
 		//currentForcePower = idealForcePower;
 		//idealForcePower = f;
-		gameLocal.DPrintf("idealForce %d, currentForce %d\n", idealForcePower, currentForcePower);
-		UpdateHudForcePower();//Call here for instant UI feedback, call in setForcePower to only show the change after the power is useable
+		//gameLocal.DPrintf("idealForce %d, currentForce %d\n", idealForcePower, currentForcePower);
+		UpdateHudForcePower(); // Call here for instant UI feedback, call in setForcePower to only show the change after the power is useable
 }
 /*
 ===============
@@ -10652,8 +10714,8 @@ void idPlayer::UpdateModel( void ) {
 		renderEntity.callback = idEntity::ModelCallback;
 	}
 
-	//Dynamix - for model alignment when mounted or in a vehicle - QW overloads UpdateModelTransform, do that later FIXME1
-	if (GetBindMaster()) {
+	// Dynamix - for model alignment when mounted or in a vehicle - QW overloads UpdateModelTransform, do that later FIXME1
+	if ( GetBindMaster() ) {
 		idEntity*	vehicle = this->GetBindMaster();
 		renderEntity.axis = vehicle->GetRenderEntity()->axis;
 	}

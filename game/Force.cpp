@@ -75,7 +75,7 @@ const idEventDef EV_Weapon_AutoReload( "autoReload", NULL, 'f' );
 const idEventDef EV_Weapon_NetReload( "netReload" );
 const idEventDef EV_Weapon_IsInvisible( "isInvisible", NULL, 'f' );
 const idEventDef EV_Weapon_NetEndReload( "netEndReload" );
-//Dynamix
+// Dynamix
 const idEventDef EV_Force_DoForcePower( "doForcePower", NULL, 'd' );
 const idEventDef EV_Force_DoForceTick( "doForceTick", NULL, 'd' );
 const idEventDef EV_Force_UseForcePoints( "useForcePoints", "fdd" );
@@ -207,9 +207,10 @@ Only called at player spawn time, not each weapon switch
 ================
 */
 void jkSimpleForcePower::SetOwner( idPlayer *_owner ) {
+	// Copy the init stuff from Quake 4  - Dynamix FIXME
 	assert( !owner );
 	owner = _owner;
-	SetName( va( "%s_fp", owner->name.c_str() ) );
+	//SetName( va( "%s_fp", owner->name.c_str() ) );
 
 	if ( worldModel.GetEntity() ) {
 		worldModel.GetEntity()->SetName( va( "%s_fp_worldmodel", owner->name.c_str() ) );
@@ -737,6 +738,12 @@ jkSimpleForcePower::InitWorldModel
 */
 void jkSimpleForcePower::InitWorldModel( const idDeclEntityDef *def ) {
 	idEntity *ent;
+
+	// Dynamix - swap to the init stuff from Q4
+	if ( !worldModel.GetEntity() ) {
+		worldModel = static_cast< idAnimatedEntity * >( gameLocal.SpawnEntityType( idAnimatedEntity::Type, NULL, true ) );
+		worldModel.GetEntity()->fl.networkSync = true;
+	}
 
 	ent = worldModel.GetEntity();
 
@@ -3012,7 +3019,7 @@ void jkSimpleForcePower::Event_LaunchProjectiles( int num_projectiles, float spr
 			dir = playerViewAxis[ 0 ] + playerViewAxis[ 2 ] * ( ang * idMath::Sin( spin ) ) - playerViewAxis[ 1 ] * ( ang * idMath::Cos( spin ) );
 			dir.Normalize();
 
-			//Dentonmod Dynamix
+			// Dentonmod Dynamix
 			if ( barrelLaunch || tracer || beam ) { // Do not execute this part unless projectile is barrel launched or has a tracer effect.
 
 				gameLocal.clip.Translation( tr, view_pos, view_pos + dir * 4096.0f, NULL, mat3_identity, MASK_SHOT_RENDERMODEL, owner );
@@ -3038,7 +3045,7 @@ void jkSimpleForcePower::Event_LaunchProjectiles( int num_projectiles, float spr
 				}
 			}
 		}
-		//Dynamix end
+		// Dynamix end
 
 			if ( projectileEnt ) {
 				ent = projectileEnt;

@@ -721,22 +721,22 @@ void idSaveGame::WriteTraceModel( const idTraceModel &trace ) {
 
 	WriteInt( (int&)trace.type );
 	WriteInt( trace.numVerts );
-	for ( j = 0; j < MAX_TRACEMODEL_VERTS; j++ ) {
+	for ( j = 0; j < trace.numVerts; j++ ) {
 		WriteVec3( trace.verts[j] );
 	}
 	WriteInt( trace.numEdges );
-	for ( j = 0; j < (MAX_TRACEMODEL_EDGES+1); j++ ) {
+	for ( j = 0; j < ( trace.numEdges + 1 ); j++ ) {
 		WriteInt( trace.edges[j].v[0] );
 		WriteInt( trace.edges[j].v[1] );
 		WriteVec3( trace.edges[j].normal );
 	}
 	WriteInt( trace.numPolys );
-	for ( j = 0; j < MAX_TRACEMODEL_POLYS; j++ ) {
+	for ( j = 0; j < trace.numPolys; j++ ) {
 		WriteVec3( trace.polys[j].normal );
 		WriteFloat( trace.polys[j].dist );
 		WriteBounds( trace.polys[j].bounds );
 		WriteInt( trace.polys[j].numEdges );
-		for ( k = 0; k < MAX_TRACEMODEL_POLYEDGES; k++ ) {
+		for ( k = 0; k < trace.polys[j].numEdges; k++ ) {
 			WriteInt( trace.polys[j].edges[k] );
 		}
 	}
@@ -1509,22 +1509,22 @@ void idRestoreGame::ReadTraceModel( idTraceModel &trace ) {
 
 	ReadInt( (int&)trace.type );
 	ReadInt( trace.numVerts );
-	for ( j = 0; j < MAX_TRACEMODEL_VERTS; j++ ) {
+	for ( j = 0; j < trace.numVerts; j++ ) {
 		ReadVec3( trace.verts[j] );
 	}
 	ReadInt( trace.numEdges );
-	for ( j = 0; j < (MAX_TRACEMODEL_EDGES+1); j++ ) {
+	for ( j = 0; j < ( trace.numEdges + 1 ); j++ ) {
 		ReadInt( trace.edges[j].v[0] );
 		ReadInt( trace.edges[j].v[1] );
 		ReadVec3( trace.edges[j].normal );
 	}
 	ReadInt( trace.numPolys );
-	for ( j = 0; j < MAX_TRACEMODEL_POLYS; j++ ) {
+	for ( j = 0; j < trace.numPolys; j++ ) {
 		ReadVec3( trace.polys[j].normal );
 		ReadFloat( trace.polys[j].dist );
 		ReadBounds( trace.polys[j].bounds );
 		ReadInt( trace.polys[j].numEdges );
-		for ( k = 0; k < MAX_TRACEMODEL_POLYEDGES; k++ ) {
+		for ( k = 0; k < trace.polys[j].numEdges; k++ ) {
 			ReadInt( trace.polys[j].edges[k] );
 		}
 	}
