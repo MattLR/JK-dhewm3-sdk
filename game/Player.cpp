@@ -2668,7 +2668,7 @@ void idPlayer::RestorePersistantInfo( void ) {
 	health = spawnArgs.GetInt( "health", "100" );
 	if ( !gameLocal.isClient ) {
 		idealWeapon = spawnArgs.GetInt( "current_weapon", "1" );
-		//Dynamix, checking if this is where weapon number is set on map load
+		// Dynamix, checking if this is where weapon number is set on map load
 		idealForcePower = 0;
 	}
 }
@@ -6734,7 +6734,7 @@ void idPlayer::UseVehicle( void ) {
 			ent->ProcessEvent( &EV_Use, this );
 			} else if (ent && ent->IsType( jkVehicle::Type) ) {
 				ProcessEvent ( &AI_EnterVehicle, ent );
-			} else if ( ent && ent->IsType( idTrigger::Type) && (ent->spawnArgs.GetInt("spawnflags") & 4) ) {
+			} else if ( ent && ent->IsType( idTrigger::Type) && ( ent->spawnArgs.GetInt( "spawnflags" ) & 4 ) ) {
 				ent->Signal( SIG_TRIGGER );
 				ent->ProcessEvent( &EV_Activate, gameLocal.GetLocalPlayer() );
 				ent->TriggerGuis();

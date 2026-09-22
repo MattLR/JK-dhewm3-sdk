@@ -3200,6 +3200,17 @@ bool idGameLocal::InhibitEntitySpawn( idDict &spawnArgs ) {
 		}
 	}
 
+	const char *layer = spawnArgs.GetString( "layer", "" );
+
+	 if ( strlen( layer ) != 0 ) {
+		result = true;
+		const char *selLayer = cvarSystem->GetCVarString( "si_nextLayer" );
+
+		if ( idStr::Icmp( layer, selLayer ) == 0 ) {
+			result = false;
+		}
+	 }
+
 	return result;
 }
 
@@ -3289,6 +3300,7 @@ void idGameLocal::SpawnMapEntities( void ) {
 		}
 	}
 
+	cvarSystem->SetCVarString( "si_nextLayer", "");
 	Printf( "...%i entities spawned, %i inhibited\n\n", num, inhibit );
 }
 

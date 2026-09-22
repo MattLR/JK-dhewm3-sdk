@@ -3665,7 +3665,7 @@ void idDoor::Event_SpawnDoorTrigger( void ) {
 	// check if any of the doors are marked as toggled
 	toggle = false;
 	for( other = moveMaster; other != NULL; other = other->GetActivateChain() ) {
-		if ( other->IsType( idDoor::Type ) && other->spawnArgs.GetBool( "toggle" ) ) {
+		if ( other->IsType( idDoor::Type ) && ( other->spawnArgs.GetBool( "toggle" ) || ( other->spawnArgs.GetInt( "spawnflags") & 8 ) ) ) {
 			toggle = true;
 			break;
 		}

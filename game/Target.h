@@ -566,5 +566,20 @@ private:
 	void				Event_RestoreVolume();
 };
 
+/*
+===============================================================================
+
+jkTarget_ScriptRunner
+
+===============================================================================
+*/
+
+class jkTarget_ScriptRunner : public idTarget {
+public:
+	CLASS_PROTOTYPE( jkTarget_ScriptRunner );
+
+private:
+	void				Event_Activate( idEntity *activator );
+};
 
 #endif /* !__GAME_TARGET_H__ */

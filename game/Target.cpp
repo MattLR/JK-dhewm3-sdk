@@ -195,6 +195,7 @@ idTarget_EndLevel::Event_Activate
 */
 void idTarget_EndLevel::Event_Activate( idEntity *activator ) {
 	idStr nextMap;
+	idStr nextLayer;
 
 	if ( spawnArgs.GetBool( "endOfGame" ) ) {
 		cvarSystem->SetCVarBool( "g_nightmare", true );
@@ -205,6 +206,11 @@ void idTarget_EndLevel::Event_Activate( idEntity *activator ) {
 	if ( !spawnArgs.GetString( "nextMap", "", nextMap ) ) {
 		gameLocal.Printf( "idTarget_SessionCommand::Event_Activate: no nextMap key\n" );
 		return;
+	}
+
+	if ( spawnArgs.GetString( "nextLayer", "", nextLayer )) {
+		cvarSystem->SetCVarString( "si_nextLayer", nextLayer);
+		gameLocal.DPrintf( "Next layer is now %s", nextLayer.c_str() );
 	}
 
 	if ( spawnArgs.GetInt( "devmap", "0" ) ) {
@@ -1759,4 +1765,68 @@ void idTarget_FadeSoundClass::Event_RestoreVolume() {
 	float fadeDB = spawnArgs.GetFloat( "fadeDB" );
 	// restore volume
 	gameSoundWorld->FadeSoundClasses( 0, fadeDB, fadeTime );
+}
+
+/*
+===============================================================================
+
+jkTarget_ScriptRunner
+
+===============================================================================
+*/
+
+CLASS_DECLARATION( idTarget, jkTarget_ScriptRunner )
+	EVENT( EV_Activate,	jkTarget_ScriptRunner::Event_Activate )
+END_CLASS
+
+/*
+================
+jkTarget_ScriptRunner::Event_Activate
+================
+*/
+void jkTarget_ScriptRunner::Event_Activate( idEntity *activator ) {
+	int					i;
+	idEntity			*ent;
+	const function_t	*scriptFunction;
+	idStr				funcName;
+	idThread			*thread;
+
+	// FIXME work out how to pass parms
+	funcName = spawnArgs.GetString( "usescript" );
+	funcName.ToLower();
+	funcName.StripPath();
+	gameLocal.Printf("Did this strip the folder properly: %s\n", funcName.c_str());
+
+	if ( funcName.Length() ) {
+		scriptFunction = gameLocal.program.FindFunction( funcName );
+		if ( scriptFunction == NULL ) {
+			gameLocal.Warning( "trigger '%s' at (%s) calls unknown function '%s'", name.c_str(), GetPhysics()->GetOrigin().ToString(0), funcName.c_str() );
+			return;
+		}
+	}
+
+	/*
+	for( i = 0; i < targets.Num(); i++ ) {
+		ent = targets[ i ].GetEntity();
+		if ( ent && ent->scriptObject.HasObject() ) {
+			func = ent->scriptObject.GetFunction( funcName );
+			if ( !func ) {
+				gameLocal.Error( "Function '%s' not found on entity '%s' for function call from '%s'", funcName, ent->name.c_str(), name.c_str() );
+			}
+			if ( func->type->NumParameters() != 1 ) {
+				gameLocal.Error( "Function '%s' on entity '%s' has the wrong number of parameters for function call from '%s'", funcName, ent->name.c_str(), name.c_str() );
+			}
+			if ( !ent->scriptObject.GetTypeDef()->Inherits( func->type->GetParmType( 0 ) ) ) {
+				gameLocal.Error( "Function '%s' on entity '%s' is the wrong type for function call from '%s'", funcName, ent->name.c_str(), name.c_str() );
+			}
+			
+			// create a thread and call the function
+			//thread = new idThread();
+			thread = new idThread( scriptFunction );
+			thread->Start();
+		}
+	}
+	*/
+	thread = new idThread( scriptFunction );
+	thread->Start();
 }

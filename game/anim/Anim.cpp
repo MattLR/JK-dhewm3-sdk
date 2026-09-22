@@ -201,7 +201,8 @@ bool idMD5Anim::LoadAnim( const char *filename ) {
 	parser.ExpectTokenString( "frameRate" );
 	frameRate = parser.ParseInt();
 	if ( frameRate < 0 ) {
-		parser.Error( "Invalid frame rate: %d", frameRate );
+		// Dynamix FIXME - disabled for testing
+		//parser.Error( "Invalid frame rate: %d", frameRate );
 	}
 
 	// parse number of animated components

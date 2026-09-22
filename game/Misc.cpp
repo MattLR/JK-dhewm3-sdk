@@ -487,7 +487,7 @@ void idDamagable::Spawn( void ) {
 	fl.takedamage = true;
 	// Dynamix
 	GetPhysics()->SetContents( CONTENTS_SOLID );
-	if (spawnFlags == 0) {
+	if ( spawnFlags == 0 ) {
 		GetPhysics()->SetContents( 0 );
 	}
 }
@@ -4460,7 +4460,8 @@ jkDamagable::Spawn
 */
 void jkDamagable::Spawn( void ) {
 	idStr broken;
-	int spawnFlags = spawnArgs.GetInt("spawnflags");
+	// Work out how JK does this
+	int spawnFlags = spawnArgs.GetInt("spawnflags", "-1");
 
 	health = spawnArgs.GetInt( "health", "5" );
 	spawnArgs.GetInt( "count", "1", count );
@@ -4477,7 +4478,7 @@ void jkDamagable::Spawn( void ) {
 	}
 	// Dynamix
 	GetPhysics()->SetContents( CONTENTS_SOLID );
-	if (spawnFlags == 0) {
+	if ( spawnFlags == 0 ) {
 		GetPhysics()->SetContents( 0 );
 	}
 }
