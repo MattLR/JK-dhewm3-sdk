@@ -307,6 +307,9 @@ idAI::idAI() {
 	fly_pitch_scale		= 0.0f;
 	fly_pitch_max		= 0.0f;
 	fly_pitch			= 0.0f;
+	// Dynamix - Q3 movement
+	q3MoveSpeed			= 0.0f;
+	q3Accel 			= 0.0f;
 	allowMove			= false;
 	allowHiddenMovement	= false;
 	fly_speed			= 0.0f;
@@ -440,6 +443,9 @@ void idAI::Save( idSaveGame *savefile ) const {
 	savefile->WriteFloat( fly_pitch_scale );
 	savefile->WriteFloat( fly_pitch_max );
 	savefile->WriteFloat( fly_pitch );
+	// Dynamix - q3 movement
+	savefile->WriteFloat( q3MoveSpeed );
+	savefile->WriteFloat( q3Accel );
 
 	savefile->WriteBool( allowMove );
 	savefile->WriteBool( allowHiddenMovement );
@@ -575,6 +581,9 @@ void idAI::Restore( idRestoreGame *savefile ) {
 	savefile->ReadFloat( fly_pitch_scale );
 	savefile->ReadFloat( fly_pitch_max );
 	savefile->ReadFloat( fly_pitch );
+	// Dynamix Q3 movement
+	savefile->ReadFloat( q3MoveSpeed );
+	savefile->ReadFloat( q3Accel );
 
 	savefile->ReadBool( allowMove );
 	savefile->ReadBool( allowHiddenMovement );
@@ -731,6 +740,8 @@ void idAI::Spawn( void ) {
 	spawnArgs.GetFloat( "fly_roll_max",			"60",		fly_roll_max );
 	spawnArgs.GetFloat( "fly_pitch_scale",		"45",		fly_pitch_scale );
 	spawnArgs.GetFloat( "fly_pitch_max",		"30",		fly_pitch_max );
+	spawnArgs.GetFloat( "move_speed",			"45",		q3MoveSpeed );
+	spawnArgs.GetFloat( "accel",				"30",		q3Accel );
 
 	spawnArgs.GetFloat( "melee_range",			"64",		melee_range );
 	spawnArgs.GetFloat( "projectile_height_to_distance_ratio",	"1", projectile_height_to_distance_ratio );
@@ -1119,6 +1130,15 @@ void idAI::Think( void ) {
 				UpdateEnemyPosition();
 				UpdateAIScript();
 				SlideMove();
+				PlayChatter();
+				CheckBlink();
+				break;
+
+			case MOVETYPE_Q3 :
+				// Dynamix - better velocity based movement
+				UpdateEnemyPosition();
+				UpdateAIScript();
+				Q3Move();
 				PlayChatter();
 				CheckBlink();
 				break;
@@ -2831,6 +2851,137 @@ void idAI::SlideMove( void ) {
 	} else if ( move.moveCommand != MOVE_NONE ) {
 		if ( vel.ToVec2().LengthSqr() > 0.1f ) {
 			TurnToward( vel.ToYaw() );
+		}
+	}
+	Turn();
+
+	if ( ai_debugMove.GetBool() ) {
+		gameRenderWorld->DebugLine( colorCyan, oldorigin, physicsObj.GetOrigin(), 5000 );
+	}
+
+	if ( !af_push_moveables && attack.Length() && TestMelee() ) {
+		DirectDamage( attack, enemy.GetEntity() );
+	} else {
+		idEntity *blockEnt = physicsObj.GetSlideMoveEntity();
+		if ( blockEnt && blockEnt->IsType( idMoveable::Type ) && blockEnt->GetPhysics()->IsPushable() ) {
+			KickObstacles( viewAxis[ 0 ], kickForce, blockEnt );
+		}
+	}
+
+	BlockedFailSafe();
+
+	AI_ONGROUND = physicsObj.OnGround();
+
+	idVec3 org = physicsObj.GetOrigin();
+	if ( oldorigin != org ) {
+		TouchTriggers();
+	}
+
+	if ( ai_debugMove.GetBool() ) {
+		gameRenderWorld->DebugBounds( colorMagenta, physicsObj.GetBounds(), org, gameLocal.msec );
+		gameRenderWorld->DebugBounds( colorMagenta, physicsObj.GetBounds(), move.moveDest, gameLocal.msec );
+		gameRenderWorld->DebugLine( colorYellow, org + EyeOffset(), org + EyeOffset() + viewAxis[ 0 ] * physicsObj.GetGravityAxis() * 16.0f, gameLocal.msec, true );
+		DrawRoute();
+	}
+}
+
+/*
+=====================
+idAI::Q3Move
+=====================
+*/
+void idAI::Q3Move( void ) {
+	idVec3				goalPos;
+	idVec3				newDest;
+	idVec3				vel;
+	idVec3				targetVel;
+	idVec3				hvel;
+	idVec3				newHVel;
+	idVec3				dir;
+	float				dist;
+	float				speed;
+	bool				direct;
+	float				dt = MS2SEC( gameLocal.msec );
+
+	idVec3 oldorigin = physicsObj.GetOrigin();
+
+	AI_BLOCKED = false;
+
+	if ( move.moveCommand < NUM_NONMOVING_COMMANDS ){
+		move.lastMoveOrigin.Zero();
+		move.lastMoveTime = gameLocal.time;
+	}
+
+	move.obstacle = NULL;
+	goalPos = oldorigin;
+	if ( ( move.moveCommand == MOVE_FACE_ENEMY ) && enemy.GetEntity() ) {
+		TurnToward( lastVisibleEnemyPos );
+	} else if ( ( move.moveCommand == MOVE_FACE_ENTITY ) && move.goalEntity.GetEntity() ) {
+		TurnToward( move.goalEntity.GetEntity()->GetPhysics()->GetOrigin() );
+	} else if ( GetMovePos( goalPos ) ) {
+		CheckObstacleAvoidance( goalPos, newDest );
+		TurnToward( newDest );
+		goalPos = newDest;
+	}
+
+	// work out the velocity we want this frame (GetMovePos can StopMove, so test the command after it)
+	targetVel.Zero();
+	direct = false;
+	if ( move.moveCommand == MOVE_SLIDE_TO_POSITION ) {
+		// scripted slide: follow the precomputed velocity for the duration
+		if ( gameLocal.time < move.startTime + move.duration ) {
+			targetVel = move.moveDir;
+			targetVel.z = 0.0f;
+			direct = true;
+		} else {
+			StopMove( MOVE_STATUS_DONE );
+		}
+	} else if ( allowMove && ( move.moveCommand >= NUM_NONMOVING_COMMANDS ) ) {
+		dir = goalPos - oldorigin;
+		dir.z = 0.0f;
+		dist = dir.Normalize();
+		if ( dist > 0.0f ) {
+			// never step past the goal
+			speed = q3MoveSpeed;
+			if ( ( dt > 0.0f ) && ( dist < speed * dt ) ) {
+				speed = dist / dt;
+			}
+			targetVel = dir * speed;
+		}
+	}
+
+	// approach the wanted horizontal velocity, keeping the vertical velocity the physics gave us
+	vel = physicsObj.GetLinearVelocity();
+	hvel.Set( vel.x, vel.y, 0.0f );
+	if ( direct || ( q3Accel <= 0.0f ) ) {
+		newHVel = targetVel;
+	} else {
+		idVec3 diff = targetVel - hvel;
+		float step = q3Accel * dt;
+		float len = diff.Length();
+		if ( len <= step ) {
+			newHVel = targetVel;
+		} else {
+			newHVel = hvel + diff * ( step / len );
+		}
+	}
+	vel.x = newHVel.x;
+	vel.y = newHVel.y;
+
+	physicsObj.SetLinearVelocity( vel );
+	physicsObj.UseFlyMove( false );
+	physicsObj.UseVelocityMove( true );
+	physicsObj.SetDelta( vec3_zero );
+	physicsObj.ForceDeltaMove( false );
+	RunPhysics();
+
+	if ( ( move.moveCommand == MOVE_FACE_ENEMY ) && enemy.GetEntity() ) {
+		TurnToward( lastVisibleEnemyPos );
+	} else if ( ( move.moveCommand == MOVE_FACE_ENTITY ) && move.goalEntity.GetEntity() ) {
+		TurnToward( move.goalEntity.GetEntity()->GetPhysics()->GetOrigin() );
+	} else if ( move.moveCommand != MOVE_NONE ) {
+		if ( newHVel.ToVec2().LengthSqr() > 0.1f ) {
+			TurnToward( newHVel.ToYaw() );
 		}
 	}
 	Turn();

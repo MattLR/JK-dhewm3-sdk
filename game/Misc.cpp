@@ -1512,10 +1512,10 @@ void idStaticEntity::Spawn( void ) {
 
 	solid = spawnArgs.GetBool( "solid" );
 	hidden = spawnArgs.GetBool( "hide" );
-	//temp for testing dynamix FIXME
+	//temp for testing dynamix FIXME - disabled for ef + maybe Q3?
 	if (spawnflags & 1) {
-		hidden = true;
-		fl.hidden = true;
+		//hidden = true;
+		//fl.hidden = true;
 	}
 
 	if ( solid && !hidden ) {

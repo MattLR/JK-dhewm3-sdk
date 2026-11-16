@@ -720,6 +720,9 @@ private:
 
 	void					UseVehicle( void );
 
+	// Dynamix
+	void 					UpdateLegsRenderFlags( void );
+
 	void					Event_GetButtons( void );
 	void					Event_GetMove( void );
 	void					Event_GetViewAngles( void );

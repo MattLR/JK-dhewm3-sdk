@@ -1544,6 +1544,13 @@ void idPlayer::Spawn( void ) {
 		headEnt->GetRenderEntity()->noSelfShadow = true;
 	}
 
+	// Dynamix
+	idAFAttachment *legsEnt = legs.GetEntity();
+	if ( legsEnt ) {
+		legsEnt->GetRenderEntity()->suppressSurfaceInViewID = entityNumber+1;
+		legsEnt->GetRenderEntity()->noSelfShadow = true;
+	}
+
 	if ( gameLocal.isMultiplayer ) {
 		Init();
 		Hide();	// properly hidden if starting as a spectator
@@ -2676,6 +2683,7 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 	}
 	*/
 
+	return;
 	/*NEW FORCE CAROUSEL CODE
 	Show's the unselected power on the right, then right and left, then right right left etc
 	Only hard bit is getting the right icons in place, current force power is easy 
@@ -6205,6 +6213,7 @@ void idPlayer::AdjustBodyAngles( void ) {
 	float torsoYaw;
 
 	if ( health < 0 ) {
+		UpdateLegsAttachment( legsYaw ); // Dynamix
 		return;
 	}
 
@@ -6264,6 +6273,12 @@ void idPlayer::AdjustBodyAngles( void ) {
 	}
 	//torsoYaw =  idMath::AngleNormalize180( viewAngles.yaw - legsYaw); //viewAngles.yaw + 
 	legsAxis = idAngles( 0.0f, legsYaw, 0.0f ).ToMat3();
+	// Dynamix
+	if ( legs.GetEntity() ) {
+		UpdateLegsAttachment( legsYaw );
+	} else {
+		animator.SetJointAxis( hipJoint, JOINTMOD_WORLD, legsAxis );
+	}
 	torsoAxis = idAngles( 0.0f, torsoYaw, 0.0f ).ToMat3();
 	animator.SetJointAxis( hipJoint, JOINTMOD_WORLD, legsAxis );
 	animator.SetJointAxis( chestJoint, JOINTMOD_WORLD, torsoAxis );
@@ -6879,6 +6894,9 @@ void idPlayer::Think( void ) {
 	if ( headRenderEnt ) {
 		headRenderEnt->suppressShadowInLightID = LIGHTID_VIEW_MUZZLE_FLASH + entityNumber;
 	}
+
+	// Dynamix
+	UpdateLegsRenderFlags();
 
 	if ( !g_stopTime.GetBool() ) {
 		UpdateAnimation();
@@ -8450,7 +8468,7 @@ void idPlayer::ClientPredictionThink( void ) {
 	scoreBoardOpen = ( ( usercmd.buttons & BUTTON_SCORES ) != 0 || forceScoreBoard );
 
 
-		if ( inVehicle ) {	
+	if ( inVehicle ) {
 		//vehicleController.SetInput( usercmd, viewAngles );
 				
 		// calculate the exact bobbed view position, which is used to
@@ -8558,6 +8576,9 @@ void idPlayer::ClientPredictionThink( void ) {
 	if ( headRenderEnt ) {
 		headRenderEnt->suppressShadowInLightID = LIGHTID_VIEW_MUZZLE_FLASH + entityNumber;
 	}
+
+	// Dynamix
+	UpdateLegsRenderFlags();
 
 	if ( !gameLocal.inCinematic ) {
 		UpdateAnimation();
@@ -9241,4 +9262,21 @@ void idPlayer::UpdateModel( void ) {
 
 	// ensure that we call Present this frame
 	BecomeActive( TH_UPDATEVISUALS );
+}
+
+/*
+==============
+idPlayer::UpdateLegsRenderFlags
+
+Same shadow suppression the head gets in Think / ClientPredictionThink.
+==============
+*/
+void idPlayer::UpdateLegsRenderFlags( void ) {
+	idAFAttachment *l = legs.GetEntity();
+	if ( !l ) {
+		return;
+	}
+	renderEntity_t *re = l->GetRenderEntity();
+	re->suppressShadowInViewID = ( gameLocal.isMultiplayer || g_showPlayerShadow.GetBool() ) ? 0 : entityNumber+1;
+	re->suppressShadowInLightID = LIGHTID_VIEW_MUZZLE_FLASH + entityNumber;
 }

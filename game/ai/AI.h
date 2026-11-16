@@ -62,6 +62,7 @@ typedef enum {
 	MOVETYPE_SLIDE,
 	MOVETYPE_FLY,
 	MOVETYPE_STATIC,
+	MOVETYPE_Q3,
 	NUM_MOVETYPES
 } moveType_t;
 
@@ -319,6 +320,8 @@ protected:
 	float					fly_pitch_scale;
 	float					fly_pitch_max;
 	float					fly_pitch;
+	float					q3MoveSpeed;	// Dynamix Q3 movement
+	float					q3Accel;
 
 	bool					allowMove;					// disables any animation movement
 	bool					allowHiddenMovement;		// allows character to still move around while hidden
@@ -451,6 +454,7 @@ protected:
 	void					DeadMove( void );
 	void					AnimMove( void );
 	void					SlideMove( void );
+	void					Q3Move( void );
 	void					AdjustFlyingAngles( void );
 	void					AddFlyBob( idVec3 &vel );
 	void					AdjustFlyHeight( idVec3 &vel, const idVec3 &goalPos );
@@ -674,6 +678,9 @@ protected:
 	void					Event_GetReachableEntityPosition( idEntity *ent );
 	//Dynamix
 	void					Event_EndMindTrick( void );
+	void					Event_GetMoveSpeed( void );
+	void					Event_SetMoveSpeed( float speed );
+	void					Event_SetAccel( float accel );
 };
 
 class idCombatNode : public idEntity {

@@ -464,6 +464,9 @@ idActor::idActor( void ) {
 	leftEyeJoint		= INVALID_JOINT;
 	rightEyeJoint		= INVALID_JOINT;
 	soundJoint			= INVALID_JOINT;
+	// Dynamix leg models
+	torsoRootJoint 		= INVALID_JOINT;
+	legsTagJoint 		= INVALID_JOINT;
 
 	modelOffset.Zero();
 	deltaViewAngles.Zero();
@@ -507,6 +510,11 @@ idActor::~idActor( void ) {
 	if ( head.GetEntity() ) {
 		head.GetEntity()->ClearBody();
 		head.GetEntity()->PostEventMS( &EV_Remove, 0 );
+	}
+
+	if ( legs.GetEntity() ) {
+		legs.GetEntity()->ClearBody();
+		legs.GetEntity()->PostEventMS( &EV_Remove, 0 );
 	}
 
 	// remove any attached entities
@@ -584,6 +592,7 @@ void idActor::Spawn( void ) {
 
 	SetupDamageGroups();
 	SetupHead();
+	SetupLegs(); // Dynamix
 
 	// clear the bind anim
 	animator.ClearAllAnims( gameLocal.time, 0 );
@@ -784,7 +793,9 @@ idActor::Restart
 */
 void idActor::Restart( void ) {
 	assert( !head.GetEntity() );
+	assert( !legs.GetEntity() );
 	SetupHead();
+	SetupLegs();
 	FinishSetup();
 }
 
@@ -829,6 +840,10 @@ void idActor::Save( idSaveGame *savefile ) const {
 
 	savefile->WriteBool( use_combat_bbox );
 	head.Save( savefile );
+	// Dynamix
+	legs.Save( savefile );
+	savefile->WriteJoint( torsoRootJoint );
+	savefile->WriteJoint( legsTagJoint );
 
 	savefile->WriteInt( copyJoints.Num() );
 	for( i = 0; i < copyJoints.Num(); i++ ) {
@@ -950,6 +965,10 @@ void idActor::Restore( idRestoreGame *savefile ) {
 
 	savefile->ReadBool( use_combat_bbox );
 	head.Restore( savefile );
+	// Dynamix
+	legs.Restore( savefile );
+	savefile->ReadJoint( torsoRootJoint );
+	savefile->ReadJoint( legsTagJoint );
 
 	savefile->ReadInt( num );
 	copyJoints.SetNum( num );
@@ -1174,7 +1193,13 @@ void idActor::SetupBody( void ) {
 	waitState = "";
 
 	torsoAnim.Init( this, &animator, ANIMCHANNEL_TORSO );
-	legsAnim.Init( this, &animator, ANIMCHANNEL_LEGS );
+	// Dynamix
+	if ( legs.GetEntity() ) {
+		// same as the head: separate entity -> its animator, ANIMCHANNEL_ALL
+		legsAnim.Init( this, legs.GetEntity()->GetAnimator(), ANIMCHANNEL_ALL );
+	} else {
+		legsAnim.Init( this, &animator, ANIMCHANNEL_LEGS );
+	}
 }
 
 /*
@@ -1646,6 +1671,12 @@ void idActor::SetCombatModel( void ) {
 		if ( headEnt ) {
 			headEnt->SetCombatModel();
 		}
+
+		// Dynamix
+		idAFAttachment *legsEnt;legsEnt = legs.GetEntity();
+		if ( legsEnt ) {
+			legsEnt->SetCombatModel();
+		}
 	}
 }
 
@@ -1677,6 +1708,11 @@ void idActor::LinkCombat( void ) {
 	if ( headEnt ) {
 		headEnt->LinkCombat();
 	}
+	// Dynamix
+	idAFAttachment *legsEnt = legs.GetEntity();
+	if ( legsEnt ) {
+		legsEnt->LinkCombat();
+	}
 }
 
 /*
@@ -1693,6 +1729,11 @@ void idActor::UnlinkCombat( void ) {
 	headEnt = head.GetEntity();
 	if ( headEnt ) {
 		headEnt->UnlinkCombat();
+	}
+	// Dynamix
+	idAFAttachment *legsEnt = legs.GetEntity();
+	if ( legsEnt ) {
+		legsEnt->UnlinkCombat();
 	}
 }
 
@@ -1721,6 +1762,11 @@ bool idActor::StartRagdoll( void ) {
 
 	// start using the AF
 	af.StartFromCurrentPose( spawnArgs.GetInt( "velocityTime", "0" ) );
+
+	// Dynamix FIXME work out how to do this properly
+		if ( legs.GetEntity() ) {
+		legs.GetEntity()->Hide();
+	}
 
 	slomoStart = MS2SEC( gameLocal.time ) + spawnArgs.GetFloat( "ragdoll_slomoStart", "-1.6" );
 	slomoEnd = MS2SEC( gameLocal.time ) + spawnArgs.GetFloat( "ragdoll_slomoEnd", "0.8" );
@@ -1761,6 +1807,10 @@ idActor::StopRagdoll
 void idActor::StopRagdoll( void ) {
 	if ( af.IsActive() ) {
 		af.Stop();
+		// Dynamix FIXME work out how to do this properly
+		if ( legs.GetEntity() && !IsHidden() ) {
+			legs.GetEntity()->Show();
+		}
 	}
 }
 
@@ -2177,13 +2227,10 @@ int idActor::GetAnim( int channel, const char *animname ) {
 	const char *temp;
 	idAnimator *animatorPtr;
 
-	if ( channel == ANIMCHANNEL_HEAD ) {
-		if ( !head.GetEntity() ) {
-			return 0;
-		}
-		animatorPtr = head.GetEntity()->GetAnimator();
-	} else {
-		animatorPtr = &animator;
+	// Dynamix leg models
+	animatorPtr = GetChannelAnimator( channel );
+	if ( !animatorPtr ) {
+		return 0;
 	}
 
 	if ( animPrefix.Length() ) {
@@ -2212,6 +2259,11 @@ void idActor::SyncAnimChannels( int channel, int syncToChannel, int blendFrames 
 	int				starttime;
 	int				blendTime;
 	int				cycle;
+
+	// Dynamix
+	if ( legs.GetEntity() && ( channel == ANIMCHANNEL_LEGS || syncToChannel == ANIMCHANNEL_LEGS ) ) {
+		return;		// legs have their own animator, nothing to mirror
+	}
 
 	blendTime = FRAME2MS( blendFrames );
 	if ( channel == ANIMCHANNEL_HEAD ) {
@@ -2282,6 +2334,10 @@ void idActor::Gib( const idVec3 &dir, const char *damageDefName ) {
 	idAFEntity_Gibbable::Gib( dir, damageDefName );
 	if ( head.GetEntity() ) {
 		head.GetEntity()->Hide();
+	}
+	// Dynamix
+	if ( legs.GetEntity() ) {
+		legs.GetEntity()->Hide();
 	}
 	StopSound( SND_CHANNEL_VOICE, false );
 }
@@ -3031,6 +3087,19 @@ void idActor::Event_IdleAnim( int channel, const char *animname ) {
 		return;
 	}
 
+	// Dnamix
+	if ( legs.GetEntity() && ( channel == ANIMCHANNEL_TORSO || channel == ANIMCHANNEL_LEGS ) ) {
+		if ( channel == ANIMCHANNEL_TORSO ) {
+			torsoAnim.BecomeIdle();
+			torsoAnim.CycleAnim( anim );
+		} else {
+			legsAnim.BecomeIdle();
+			legsAnim.CycleAnim( anim );
+		}
+		idThread::ReturnInt( true );
+		return;
+	}
+
 	switch( channel ) {
 	case ANIMCHANNEL_HEAD :
 		headAnim.BecomeIdle();
@@ -3374,11 +3443,10 @@ void idActor::Event_ChooseAnim( int channel, const char *animname ) {
 
 	anim = GetAnim( channel, animname );
 	if ( anim ) {
-		if ( channel == ANIMCHANNEL_HEAD ) {
-			if ( head.GetEntity() ) {
-				idThread::ReturnString( head.GetEntity()->GetAnimator()->AnimFullName( anim ) );
-				return;
-			}
+		idAnimator *chanAnim = GetChannelAnimator( channel );
+		if ( chanAnim ) {
+			idThread::ReturnString( chanAnim->AnimFullName( anim ) );
+			return;
 		} else {
 			idThread::ReturnString( animator.AnimFullName( anim ) );
 			return;
@@ -3398,11 +3466,10 @@ void idActor::Event_AnimLength( int channel, const char *animname ) {
 
 	anim = GetAnim( channel, animname );
 	if ( anim ) {
-		if ( channel == ANIMCHANNEL_HEAD ) {
-			if ( head.GetEntity() ) {
-				idThread::ReturnFloat( MS2SEC( head.GetEntity()->GetAnimator()->AnimLength( anim ) ) );
-				return;
-			}
+		idAnimator *chanAnim = GetChannelAnimator( channel );
+		if ( chanAnim ) {
+			idThread::ReturnFloat( MS2SEC( chanAnim->AnimLength( anim ) ) );
+			return;
 		} else {
 			idThread::ReturnFloat( MS2SEC( animator.AnimLength( anim ) ) );
 			return;
@@ -3422,11 +3489,10 @@ void idActor::Event_AnimDistance( int channel, const char *animname ) {
 
 	anim = GetAnim( channel, animname );
 	if ( anim ) {
-		if ( channel == ANIMCHANNEL_HEAD ) {
-			if ( head.GetEntity() ) {
-				idThread::ReturnFloat( head.GetEntity()->GetAnimator()->TotalMovementDelta( anim ).Length() );
-				return;
-			}
+		idAnimator *chanAnim = GetChannelAnimator( channel );
+		if ( chanAnim ) {
+			idThread::ReturnFloat( chanAnim->TotalMovementDelta( anim ).Length() );
+			return;
 		} else {
 			idThread::ReturnFloat( animator.TotalMovementDelta( anim ).Length() );
 			return;
@@ -3641,4 +3707,134 @@ int idActor::PlayAnim ( int channel, const char *animname, int blendFrames ) {
 	}
 	
 	return animator.CurrentAnim( channel )->Length();
+}
+
+/*
+================
+idActor::GetChannelAnimator
+
+Head and legs can live on their own entities. Everything else is the actor's own animator.
+================
+*/
+idAnimator *idActor::GetChannelAnimator( int channel ) {
+	if ( channel == ANIMCHANNEL_HEAD ) {
+		return head.GetEntity() ? head.GetEntity()->GetAnimator() : NULL;
+	}
+	if ( channel == ANIMCHANNEL_LEGS && legs.GetEntity() ) {
+		return legs.GetEntity()->GetAnimator();
+	}
+	return &animator;
+}
+
+/*
+================
+idActor::CurrentChannelAnim
+
+The legs entity plays everything on ANIMCHANNEL_ALL of its own animator.
+================
+*/
+idAnimBlend *idActor::CurrentChannelAnim( int channel ) {
+	if ( channel == ANIMCHANNEL_LEGS && legs.GetEntity() ) {
+		return legs.GetEntity()->GetAnimator()->CurrentAnim( ANIMCHANNEL_ALL );
+	}
+	return animator.CurrentAnim( channel );
+}
+
+/*
+================
+idActor::SetupLegs
+
+Same pattern as SetupHead, except the legs follow the actor's origin
+instead of a joint, and keep their own yaw.
+================
+*/
+void idActor::SetupLegs( void ) {
+	idAFAttachment *legsEnt;
+	const char *legsModel;
+	const char *jointName;
+	jointHandle_t damageJoint;
+	const idKeyValue *sndKV;
+	int i;
+
+	if ( gameLocal.isClient ) {
+		return;
+	}
+
+	legsModel = spawnArgs.GetString( "def_legs", "" );
+	if ( !legsModel[ 0 ] ) {
+		return;
+	}
+
+	// use the body's "legs" damage group if it has one, otherwise unscaled damage
+	damageJoint = INVALID_JOINT;
+	for( i = 0; i < damageGroups.Num(); i++ ) {
+		if ( damageGroups[ i ] == "legs" ) {
+			damageJoint = static_cast<jointHandle_t>( i );
+			break;
+		}
+	}
+
+	// copy any sounds in case we have frame commands on the legs
+	idDict args;
+	sndKV = spawnArgs.MatchPrefix( "snd_", NULL );
+	while( sndKV ) {
+		args.Set( sndKV->GetKey(), sndKV->GetValue() );
+		sndKV = spawnArgs.MatchPrefix( "snd_", sndKV );
+	}
+
+	legsEnt = static_cast<idAFAttachment *>( gameLocal.SpawnEntityType( idAFAttachment::Type, &args ) );
+	legsEnt->SetName( va( "%s_legs", name.c_str() ) );
+	legsEnt->SetBody( this, legsModel, damageJoint );
+	legs = legsEnt;
+
+	// joint that receives the legs' pelvis motion, and the tag it follows
+	jointName = spawnArgs.GetString( "joint_torso_root", "" );
+	torsoRootJoint = animator.GetJointHandle( jointName );
+	if ( torsoRootJoint == INVALID_JOINT ) {
+		gameLocal.Error( "Joint '%s' not found for 'joint_torso_root' on '%s'", jointName, name.c_str() );
+	}
+	jointName = spawnArgs.GetString( "joint_legs_tag", "tag_torso" );
+	legsTagJoint = legsEnt->GetAnimator()->GetJointHandle( jointName );
+	if ( legsTagJoint == INVALID_JOINT ) {
+		gameLocal.Error( "Joint '%s' not found for 'joint_legs_tag' on '%s' legs", jointName, name.c_str() );
+	}
+
+	legsEnt->GetAnimator()->RemoveOriginOffset( true );		// same as the body: movement is applied by physics
+	legsEnt->BecomeActive( TH_THINK );						// in case nothing else is ticking it
+
+	// follow our position, keep our own axis (idPhysics_Static keeps the world axis when not orientated)
+	legsEnt->SetOrigin( GetPhysics()->GetOrigin() );
+	legsEnt->SetAxis( viewAxis );
+	legsEnt->Bind( this, false );
+}
+
+/*
+================
+idActor::UpdateLegsAttachment
+
+Turn the legs entity to its own yaw and carry the legs' pelvis motion
+(bob, crouch, jump) up to the torso. relYaw is how far the legs have swung
+away from the body yaw: legsYaw for the player, 0 for AI.
+================
+*/
+void idActor::UpdateLegsAttachment( float relYaw ) {
+	idAFAttachment *l = legs.GetEntity();
+	idVec3 tagPos;
+	idMat3 tagAxis;
+
+	if ( !l ) {
+		return;
+	}
+
+	l->SetAxis( idAngles( 0.0f, viewAxis[ 0 ].ToYaw() + relYaw, 0.0f ).ToMat3() );
+
+	if ( torsoRootJoint == INVALID_JOINT || legsTagJoint == INVALID_JOINT ) {
+		return;
+	}
+
+	// the tag position is in the legs model's frame, which is rotated by relYaw relative to the body's
+	if ( l->GetAnimator()->GetJointTransform( legsTagJoint, gameLocal.time, tagPos, tagAxis ) ) {
+		idMat3 legsToBody = idAngles( 0.0f, relYaw, 0.0f ).ToMat3();
+		animator.SetJointPos( torsoRootJoint, JOINTMOD_WORLD, legsToBody * tagPos );	// JOINTMOD_WORLD is a model-space offset
+	}
 }

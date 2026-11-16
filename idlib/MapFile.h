@@ -225,6 +225,7 @@ protected:
 	idList<idMapEntity *>	entities;
 	idStr					name;
 	bool					hasPrimitiveData;
+	bool					parsedExtra;
 
 private:
 	void					SetGeometryCRC( void );

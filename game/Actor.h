@@ -217,6 +217,10 @@ public:
 
 							// animation state control
 	int						GetAnim( int channel, const char *name );
+	// Dynamix for legs models
+	void					UpdateLegsAttachment( float relYaw );
+	idAnimator *			GetChannelAnimator( int channel );
+	idAnimBlend *			CurrentChannelAnim( int channel );
 	void					UpdateAnimState( void );
 	void					SetAnimState( int channel, const char *name, int blendFrames );
 	const char *			GetAnimState( int channel ) const;
@@ -250,6 +254,10 @@ protected:
 
 	bool						use_combat_bbox;	// whether to use the bounding box for combat collision
 	idEntityPtr<idAFAttachment>	head;
+	// Dynamix, for legs/torso EF models
+	idEntityPtr<idAFAttachment>	legs;	
+	jointHandle_t				torsoRootJoint;		// root of the body (torso) skeleton, receives the legs' tag offset 
+	jointHandle_t				legsTagJoint;		// tag_torso in the legs model
 	idList<copyJoints_t>		copyJoints;			// copied from the body animation to the head model
 
 	// state variables
@@ -313,6 +321,8 @@ private:
 	void					SyncAnimChannels( int channel, int syncToChannel, int blendFrames );
 	void					FinishSetup( void );
 	void					SetupHead( void );
+	// Dynamix for EF split models
+	void					SetupLegs( void );
 	void					PlayFootStepSound( void );
 
 	void					Event_EnableEyeFocus( void );

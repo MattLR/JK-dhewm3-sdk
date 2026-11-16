@@ -71,7 +71,7 @@ If you have questions concerning this license or the applicable additional terms
 #define	MASK_SHOT_RENDERMODEL	(CONTENTS_SOLID|CONTENTS_RENDERMODEL)
 #define	MASK_SHOT_BOUNDINGBOX	(CONTENTS_SOLID|CONTENTS_BODY)
 
-#define DEFAULT_GRAVITY_STRING	"1066"
+#define DEFAULT_GRAVITY_STRING	"800"
 
 extern void gameError( const char *fmt, ... );
 

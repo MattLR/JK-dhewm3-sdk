@@ -193,7 +193,7 @@ void dnVertexAnimator::PlayAnim(const char* animName, bool loop) {
 
 	currentAnimName = animName;
 
-	int currentTime = sys->GetMilliseconds();
+	int currentTime = gameLocal.time;
 	lastTime = currentTime;
 
 	isLooping = loop;
@@ -215,7 +215,7 @@ void dnVertexAnimator::Update(void) {
 	}
 
 	// Get the current time and calculate the delta time in seconds
-	int currentTime = sys->GetMilliseconds();
+	int currentTime = gameLocal.time;
 	int deltaTime = currentTime - lastTime;
 	lastTime = currentTime;
 	float deltaTimeSeconds = deltaTime / 1000.0f;

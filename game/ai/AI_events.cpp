@@ -164,6 +164,9 @@ const idEventDef AI_CanReachEnemy( "canReachEnemy", NULL, 'd' );
 const idEventDef AI_GetReachableEntityPosition( "getReachableEntityPosition", "e", 'v' );
 //Dynamix
 const idEventDef AI_EndMindTrick( "endMindTrick");
+const idEventDef AI_GetMoveSpeed( "getMoveSpeed", NULL, 'f' );
+const idEventDef AI_SetMoveSpeed( "setMoveSpeed", "f" );
+const idEventDef AI_SetAccel( "setAccel", "f" );
 
 //AI_SetTeam 
 //AI_ResetTeam 
@@ -1958,6 +1961,16 @@ void idAI::Event_SetMoveType( int moveType ) {
 		gameLocal.Error( "Invalid movetype %d", moveType );
 	}
 
+	// Dynamix Q3 movement - FIXME double check if this is how this should work
+	if ( ( move.moveType == MOVETYPE_Q3 ) && ( moveType != MOVETYPE_Q3 ) ) {
+		// leaving Q3 movement: stop applying our velocity and drop the horizontal speed
+		// so the next movetype doesn't inherit it
+		idVec3 vel = physicsObj.GetLinearVelocity();
+		vel.x = vel.y = 0.0f;
+		physicsObj.SetLinearVelocity( vel );
+		physicsObj.UseVelocityMove( false );
+	}
+
 	move.moveType = static_cast<moveType_t>( moveType );
 	if ( move.moveType == MOVETYPE_FLY ) {
 		travelFlags = TFL_WALK|TFL_AIR|TFL_FLY;
@@ -2725,4 +2738,38 @@ void idAI::Event_EndMindTrick( void ) {
 	spawnArgs.GetInt(	"team",					"1",		team );
 	spawnArgs.GetInt(	"rank",					"0",		rank );
 	return;
+}
+
+/*
+=====================
+idAI::Event_GetMoveSpeed
+
+current horizontal speed in units/sec (works in any movetype)
+=====================
+*/
+void idAI::Event_GetMoveSpeed( void ) {
+	idThread::ReturnFloat( physicsObj.GetLinearVelocity().ToVec2().Length() );
+}
+
+/*
+=====================
+idAI::Event_SetMoveSpeed
+
+MOVETYPE_Q3: ground speed in units/sec
+=====================
+*/
+void idAI::Event_SetMoveSpeed( float speed ) {
+	q3MoveSpeed = ( speed > 0.0f ) ? speed : 0.0f;
+}
+
+/*
+=====================
+idAI::Event_SetMoveAccel
+
+MOVETYPE_Q3: units/sec^2 used to reach the wanted velocity, also used to slow down and stop.
+0 = instant.  Knockback from impulses only survives a frame with accel 0.
+=====================
+*/
+void idAI::Event_SetAccel( float accel ) {
+	q3Accel = ( accel > 0.0f ) ? accel : 0.0f;
 }

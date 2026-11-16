@@ -2032,6 +2032,38 @@ void idWeapon::PresentWeapon( bool showViewModel ) {
 	// present the model
 	if ( showViewModel ) {
 		Present();
+		// Dumb stuff to get this to work while I work out how to do this properly - Dynamix FIXME
+		idMat3 axis2;
+		idVec3 origin2;
+		idEntity *ent2;
+		//offset with viewmodel won't work because I'm just zeroing everything out and putting it on origin, temp fixme
+		idVec3 offset2(-1, 0, 0);
+
+		RunPhysics();
+		ent2 = this->GetNextTeamEntity();
+
+		if ( ent2 ) {
+			if ( ent2 == this) {
+				ent2 = this->GetNextTeamEntity();
+			}
+		//while ( ent2 && ent2 != this ){
+		//GetGlobalJointTransform( true, barrelJointView, origin2, axis2 );
+
+		origin2.Zero();
+		axis2.Identity();
+		ent2->SetOrigin(origin2 + offset2);
+		
+		ent2->SetAxis(axis2);
+		//ent2->BecomeActive( TH_PHYSICS );
+		//ent2->thinkFlags &= TH_PHYSICS;
+		//ent2->RunPhysics();
+
+		//ent2->Bind(this, 0);
+
+		//ent2 = ent2->GetNextTeamEntity();
+		//}
+		}
+		//end stupid hacky shit 
 	} else {
 		FreeModelDef();
 	}
