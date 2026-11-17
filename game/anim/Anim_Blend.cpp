@@ -282,30 +282,18 @@ ID_INLINE bool idAnim::GetBounds( idBounds &bounds, int animNum, int currentTime
 	return true;
 }
 
-
 /*
 =====================
-idAnim::AddFrameCommand
+idAnim::ParseFrameCommand
 
+Parses one frame command (everything after "frame <n>") from the lexer into fc.
+modelDef may be NULL (vertex anims): joint names are then not validated.
 Returns NULL if no error.
 =====================
 */
-const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenum, idLexer &src, const idDict *def ) {
-	int					i;
-	int					index;
-	idStr				text;
-	idStr				funcname;
-	frameCommand_t		fc;
+const char *idAnim::ParseFrameCommand( const idDeclModelDef *modelDef, idLexer &src, frameCommand_t &fc ) {
 	idToken				token;
 	const jointInfo_t	*jointInfo;
-
-	// make sure we're within bounds
-	if ( ( framenum < 1 ) || ( framenum > anims[ 0 ]->NumFrames() ) ) {
-		return va( "Frame %d out of range", framenum );
-	}
-
-	// frame numbers are 1 based in .def files, but 0 based internally
-	framenum--;
 
 	memset( &fc, 0, sizeof( fc ) );
 
@@ -537,7 +525,7 @@ const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenu
 		if( !src.ReadTokenOnLine( &token ) ) {
 			return "Unexpected end of line";
 		}
-		if ( ( token != "" ) && !modelDef->FindJoint( token ) ) {
+		if ( ( token != "" ) && modelDef && !modelDef->FindJoint( token ) ) {
 			return va( "Joint '%s' not found", token.c_str() );
 		}
 		fc.type = FC_MUZZLEFLASH;
@@ -546,7 +534,7 @@ const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenu
 		if( !src.ReadTokenOnLine( &token ) ) {
 			return "Unexpected end of line";
 		}
-		if ( !modelDef->FindJoint( token ) ) {
+		if ( modelDef && !modelDef->FindJoint( token ) ) {
 			return va( "Joint '%s' not found", token.c_str() );
 		}
 		fc.type = FC_CREATEMISSILE;
@@ -555,7 +543,7 @@ const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenu
 		if( !src.ReadTokenOnLine( &token ) ) {
 			return "Unexpected end of line";
 		}
-		if ( !modelDef->FindJoint( token ) ) {
+		if ( modelDef && !modelDef->FindJoint( token ) ) {
 			return va( "Joint '%s' not found", token.c_str() );
 		}
 		fc.type = FC_LAUNCHMISSILE;
@@ -580,6 +568,9 @@ const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenu
 	} else if ( token == "fire_missile_at_target" ) {
 		if( !src.ReadTokenOnLine( &token ) ) {
 			return "Unexpected end of line";
+		}
+		if ( !modelDef ) {
+			return "fire_missile_at_target needs a modelDef (not supported on vertex anims)";
 		}
 		jointInfo = modelDef->FindJoint( token );
 		if ( !jointInfo ) {
@@ -641,6 +632,39 @@ const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenu
 		return va( "Unknown command '%s'", token.c_str() );
 	}
 
+	return NULL;
+}
+
+/*
+=====================
+idAnim::AddFrameCommand
+
+Returns NULL if no error.
+=====================
+*/
+const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenum, idLexer &src, const idDict *def ) {
+	int					i;
+	int					index;
+	idStr				text;
+	idStr				funcname;
+	frameCommand_t		fc;
+	idToken				token;
+	const jointInfo_t	*jointInfo;
+
+	// make sure we're within bounds
+	if ( ( framenum < 1 ) || ( framenum > anims[ 0 ]->NumFrames() ) ) {
+		return va( "Frame %d out of range", framenum );
+	}
+
+	// frame numbers are 1 based in .def files, but 0 based internally
+	framenum--;
+
+	// Dynamix, swapped to shared parser with vertexAnims
+	const char *err = ParseFrameCommand( modelDef, src, fc );
+	if ( err ) {
+		return err;
+	}
+
 	// check if we've initialized the frame loopup table
 	if ( !frameLookup.Num() ) {
 		// we haven't, so allocate the table and initialize it
@@ -680,6 +704,288 @@ const char *idAnim::AddFrameCommand( const idDeclModelDef *modelDef, int framenu
 
 /*
 =====================
+idAnim::ExecuteFrameCommand
+
+Runs a single frame command on ent. frame is 0 based (only used for warnings).
+modelDef may be NULL (vertex anims).
+=====================
+*/
+void idAnim::ExecuteFrameCommand( const idDeclModelDef *modelDef, const char *animName, int frame, idEntity *ent, const frameCommand_t &command ) {
+	switch( command.type ) {
+		case FC_SCRIPTFUNCTION: {
+			gameLocal.CallFrameCommand( ent, command.function );
+			break;
+		}
+		case FC_SCRIPTFUNCTIONOBJECT: {
+			ent->ProcessEvent ( &EV_ObjectCall, command.string->c_str() );
+			//gameLocal.CallObjectFrameCommand( ent, command.string->c_str() );
+			break;
+		}
+		case FC_EVENTFUNCTION: {
+			const idEventDef *ev = idEventDef::FindEvent( command.string->c_str() );
+			ent->ProcessEvent( ev );
+			break;
+		}
+		case FC_SOUND: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_ANY, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_ANY, 0, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_VOICE: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_VOICE, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_voice' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_VOICE, 0, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_VOICE2: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_VOICE2, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_voice2' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_VOICE2, 0, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_BODY: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_BODY, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_body' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_BODY, 0, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_BODY2: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_BODY2, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_body2' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_BODY2, 0, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_BODY3: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_BODY3, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_body3' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_BODY3, 0, false, NULL );
+			}
+			break;
+							 }
+		case FC_SOUND_WEAPON: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_WEAPON, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_weapon' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_WEAPON, 0, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_GLOBAL: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_global' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_ITEM: {
+			if ( !command.soundShader ) {
+				if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_ITEM, 0, false, NULL ) ) {
+					gameLocal.Warning( "Framecommand 'sound_item' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+						ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+				}
+			} else {
+				ent->StartSoundShader( command.soundShader, SND_CHANNEL_ITEM, 0, false, NULL );
+			}
+			break;
+		}
+		case FC_SOUND_CHATTER: {
+			if ( ent->CanPlayChatterSounds() ) {
+				if ( !command.soundShader ) {
+					if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_VOICE, 0, false, NULL ) ) {
+						gameLocal.Warning( "Framecommand 'sound_chatter' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
+							ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+					}
+				} else {
+					ent->StartSoundShader( command.soundShader, SND_CHANNEL_VOICE, 0, false, NULL );
+				}
+			}
+			break;
+		}
+		case FC_FX: {
+			idEntityFx::StartFx( command.string->c_str(), NULL, NULL, ent, true );
+			break;
+		}
+		case FC_SKIN: {
+			ent->SetSkin( command.skin );
+			break;
+		}
+		case FC_TRIGGER: {
+			idEntity *target;
+
+			target = gameLocal.FindEntity( command.string->c_str() );
+			if ( target ) {
+				target->Signal( SIG_TRIGGER );
+				target->ProcessEvent( &EV_Activate, ent );
+				target->TriggerGuis();
+			} else {
+				gameLocal.Warning( "Framecommand 'trigger' on entity '%s', anim '%s', frame %d: Could not find entity '%s'",
+					ent->name.c_str(), animName, frame + 1, command.string->c_str() );
+			}
+			break;
+		}
+		case FC_TRIGGER_SMOKE_PARTICLE: {
+			ent->ProcessEvent( &AI_TriggerParticles, command.string->c_str() );
+			break;
+		}
+		case FC_MELEE: {
+			ent->ProcessEvent( &AI_AttackMelee, command.string->c_str() );
+			break;
+		}
+		case FC_DIRECTDAMAGE: {
+			ent->ProcessEvent( &AI_DirectDamage, command.string->c_str() );
+			break;
+		}
+		case FC_BEGINATTACK: {
+			ent->ProcessEvent( &AI_BeginAttack, command.string->c_str() );
+			break;
+		}
+		case FC_ENDATTACK: {
+			ent->ProcessEvent( &AI_EndAttack );
+			break;
+		}
+		case FC_MUZZLEFLASH: {
+			ent->ProcessEvent( &AI_MuzzleFlash, command.string->c_str() );
+			break;
+		}
+		case FC_CREATEMISSILE: {
+			ent->ProcessEvent( &AI_CreateMissile, command.string->c_str() );
+			break;
+		}
+		case FC_LAUNCHMISSILE: {
+			ent->ProcessEvent( &AI_AttackMissile, command.string->c_str() );
+			break;
+		}
+		case FC_START_AUTOMELEE: {
+			float value;
+			value = atof(command.string->c_str());
+
+			ent->ProcessEvent( &EV_Weapon_StartAutoMelee, value, command.index );
+			break;
+		}
+		case FC_STOP_AUTOMELEE: {
+			ent->ProcessEvent( &EV_Weapon_StopAutoMelee );
+			break;
+		}
+		case FC_FIREMISSILEATTARGET: {
+			if ( modelDef ) {
+				ent->ProcessEvent( &AI_FireMissileAtTarget, modelDef->GetJointName( command.index ), command.string->c_str() );
+			}
+			break;
+		}
+		case FC_FOOTSTEP : {
+			ent->ProcessEvent( &EV_Footstep );
+			break;
+		}
+		case FC_LEFTFOOT: {
+			ent->ProcessEvent( &EV_FootstepLeft );
+			break;
+		}
+		case FC_RIGHTFOOT: {
+			ent->ProcessEvent( &EV_FootstepRight );
+			break;
+		}
+		case FC_ENABLE_EYE_FOCUS: {
+			ent->ProcessEvent( &AI_EnableEyeFocus );
+			break;
+		}
+		case FC_DISABLE_EYE_FOCUS: {
+			ent->ProcessEvent( &AI_DisableEyeFocus );
+			break;
+		}
+		case FC_DISABLE_GRAVITY: {
+			ent->ProcessEvent( &AI_DisableGravity );
+			break;
+		}
+		case FC_ENABLE_GRAVITY: {
+			ent->ProcessEvent( &AI_EnableGravity );
+			break;
+		}
+		case FC_JUMP: {
+			ent->ProcessEvent( &AI_JumpFrame );
+			break;
+		}
+		case FC_ENABLE_CLIP: {
+			ent->ProcessEvent( &AI_EnableClip );
+			break;
+		}
+		case FC_DISABLE_CLIP: {
+			ent->ProcessEvent( &AI_DisableClip );
+			break;
+		}
+		case FC_ENABLE_WALK_IK: {
+			ent->ProcessEvent( &EV_EnableWalkIK );
+			break;
+		}
+		case FC_DISABLE_WALK_IK: {
+			ent->ProcessEvent( &EV_DisableWalkIK );
+			break;
+		}
+		case FC_ENABLE_LEG_IK: {
+			ent->ProcessEvent( &EV_EnableLegIK, command.index );
+			break;
+		}
+		case FC_DISABLE_LEG_IK: {
+			ent->ProcessEvent( &EV_DisableLegIK, command.index );
+			break;
+		}
+		case FC_RECORDDEMO: {
+			if ( command.string ) {
+				cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "recordDemo %s", command.string->c_str() ) );
+			} else {
+				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "stoprecording" );
+			}
+			break;
+		}
+		case FC_AVIGAME: {
+			if ( command.string ) {
+				cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "aviGame %s", command.string->c_str() ) );
+			} else {
+				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "aviGame" );
+			}
+			break;
+		}
+	}
+}
+
+/*
+=====================
 idAnim::CallFrameCommands
 =====================
 */
@@ -702,275 +1008,7 @@ void idAnim::CallFrameCommands( idEntity *ent, int from, int to ) const {
 		end = index + frameLookup[ frame ].num;
 		while( index < end ) {
 			const frameCommand_t &command = frameCommands[ index++ ];
-			switch( command.type ) {
-				case FC_SCRIPTFUNCTION: {
-					gameLocal.CallFrameCommand( ent, command.function );
-					break;
-				}
-				case FC_SCRIPTFUNCTIONOBJECT: {
-					ent->ProcessEvent ( &EV_ObjectCall, command.string->c_str() );
-					//gameLocal.CallObjectFrameCommand( ent, command.string->c_str() );
-					break;
-				}
-				case FC_EVENTFUNCTION: {
-					const idEventDef *ev = idEventDef::FindEvent( command.string->c_str() );
-					ent->ProcessEvent( ev );
-					break;
-				}
-				case FC_SOUND: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_ANY, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_ANY, 0, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_VOICE: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_VOICE, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_voice' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_VOICE, 0, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_VOICE2: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_VOICE2, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_voice2' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_VOICE2, 0, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_BODY: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_BODY, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_body' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_BODY, 0, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_BODY2: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_BODY2, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_body2' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_BODY2, 0, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_BODY3: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_BODY3, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_body3' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_BODY3, 0, false, NULL );
-					}
-					break;
-									 }
-				case FC_SOUND_WEAPON: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_WEAPON, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_weapon' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_WEAPON, 0, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_GLOBAL: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_global' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_ITEM: {
-					if ( !command.soundShader ) {
-						if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_ITEM, 0, false, NULL ) ) {
-							gameLocal.Warning( "Framecommand 'sound_item' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-								ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-						}
-					} else {
-						ent->StartSoundShader( command.soundShader, SND_CHANNEL_ITEM, 0, false, NULL );
-					}
-					break;
-				}
-				case FC_SOUND_CHATTER: {
-					if ( ent->CanPlayChatterSounds() ) {
-						if ( !command.soundShader ) {
-							if ( !ent->StartSound( command.string->c_str(), SND_CHANNEL_VOICE, 0, false, NULL ) ) {
-								gameLocal.Warning( "Framecommand 'sound_chatter' on entity '%s', anim '%s', frame %d: Could not find sound '%s'",
-									ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-							}
-						} else {
-							ent->StartSoundShader( command.soundShader, SND_CHANNEL_VOICE, 0, false, NULL );
-						}
-					}
-					break;
-				}
-				case FC_FX: {
-					idEntityFx::StartFx( command.string->c_str(), NULL, NULL, ent, true );
-					break;
-				}
-				case FC_SKIN: {
-					ent->SetSkin( command.skin );
-					break;
-				}
-				case FC_TRIGGER: {
-					idEntity *target;
-
-					target = gameLocal.FindEntity( command.string->c_str() );
-					if ( target ) {
-						target->Signal( SIG_TRIGGER );
-						target->ProcessEvent( &EV_Activate, ent );
-						target->TriggerGuis();
-					} else {
-						gameLocal.Warning( "Framecommand 'trigger' on entity '%s', anim '%s', frame %d: Could not find entity '%s'",
-							ent->name.c_str(), FullName(), frame + 1, command.string->c_str() );
-					}
-					break;
-				}
-				case FC_TRIGGER_SMOKE_PARTICLE: {
-					ent->ProcessEvent( &AI_TriggerParticles, command.string->c_str() );
-					break;
-				}
-				case FC_MELEE: {
-					ent->ProcessEvent( &AI_AttackMelee, command.string->c_str() );
-					break;
-				}
-				case FC_DIRECTDAMAGE: {
-					ent->ProcessEvent( &AI_DirectDamage, command.string->c_str() );
-					break;
-				}
-				case FC_BEGINATTACK: {
-					ent->ProcessEvent( &AI_BeginAttack, command.string->c_str() );
-					break;
-				}
-				case FC_ENDATTACK: {
-					ent->ProcessEvent( &AI_EndAttack );
-					break;
-				}
-				case FC_MUZZLEFLASH: {
-					ent->ProcessEvent( &AI_MuzzleFlash, command.string->c_str() );
-					break;
-				}
-				case FC_CREATEMISSILE: {
-					ent->ProcessEvent( &AI_CreateMissile, command.string->c_str() );
-					break;
-				}
-				case FC_LAUNCHMISSILE: {
-					ent->ProcessEvent( &AI_AttackMissile, command.string->c_str() );
-					break;
-				}
-				case FC_START_AUTOMELEE: {
-					float value;
-					value = atof(command.string->c_str());
-
-					ent->ProcessEvent( &EV_Weapon_StartAutoMelee, value, command.index );
-					break;
-				}
-				case FC_STOP_AUTOMELEE: {
-					ent->ProcessEvent( &EV_Weapon_StopAutoMelee );
-					break;
-				}
-				case FC_FIREMISSILEATTARGET: {
-					ent->ProcessEvent( &AI_FireMissileAtTarget, modelDef->GetJointName( command.index ), command.string->c_str() );
-					break;
-				}
-				case FC_FOOTSTEP : {
-					ent->ProcessEvent( &EV_Footstep );
-					break;
-				}
-				case FC_LEFTFOOT: {
-					ent->ProcessEvent( &EV_FootstepLeft );
-					break;
-				}
-				case FC_RIGHTFOOT: {
-					ent->ProcessEvent( &EV_FootstepRight );
-					break;
-				}
-				case FC_ENABLE_EYE_FOCUS: {
-					ent->ProcessEvent( &AI_EnableEyeFocus );
-					break;
-				}
-				case FC_DISABLE_EYE_FOCUS: {
-					ent->ProcessEvent( &AI_DisableEyeFocus );
-					break;
-				}
-				case FC_DISABLE_GRAVITY: {
-					ent->ProcessEvent( &AI_DisableGravity );
-					break;
-				}
-				case FC_ENABLE_GRAVITY: {
-					ent->ProcessEvent( &AI_EnableGravity );
-					break;
-				}
-				case FC_JUMP: {
-					ent->ProcessEvent( &AI_JumpFrame );
-					break;
-				}
-				case FC_ENABLE_CLIP: {
-					ent->ProcessEvent( &AI_EnableClip );
-					break;
-				}
-				case FC_DISABLE_CLIP: {
-					ent->ProcessEvent( &AI_DisableClip );
-					break;
-				}
-				case FC_ENABLE_WALK_IK: {
-					ent->ProcessEvent( &EV_EnableWalkIK );
-					break;
-				}
-				case FC_DISABLE_WALK_IK: {
-					ent->ProcessEvent( &EV_DisableWalkIK );
-					break;
-				}
-				case FC_ENABLE_LEG_IK: {
-					ent->ProcessEvent( &EV_EnableLegIK, command.index );
-					break;
-				}
-				case FC_DISABLE_LEG_IK: {
-					ent->ProcessEvent( &EV_DisableLegIK, command.index );
-					break;
-				}
-				case FC_RECORDDEMO: {
-					if ( command.string ) {
-						cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "recordDemo %s", command.string->c_str() ) );
-					} else {
-						cmdSystem->BufferCommandText( CMD_EXEC_NOW, "stoprecording" );
-					}
-					break;
-				}
-				case FC_AVIGAME: {
-					if ( command.string ) {
-						cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "aviGame %s", command.string->c_str() ) );
-					} else {
-						cmdSystem->BufferCommandText( CMD_EXEC_NOW, "aviGame" );
-					}
-					break;
-				}
-			}
+			ExecuteFrameCommand( modelDef, FullName(), frame, ent, command );
 		}
 	}
 }

@@ -3310,6 +3310,7 @@ idAnimatedVertex::idAnimatedVertex
 ================
 */
 idAnimatedVertex::idAnimatedVertex () {
+	animator.SetEntity( this );
 }
 
 /*

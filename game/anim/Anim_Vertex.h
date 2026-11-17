@@ -30,9 +30,43 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "idlib/Dict.h"
 #include "renderer/Model.h"
+#include "anim/Anim.h"
 
+class idEntity;
 class idSaveGame;
 class idRestoreGame;
+
+/*
+==============================================================================================
+
+	dnVertexFrameCmd_t / dnVertexAnimDef
+
+	One parsed "anim" entry from a vertexmodeldef decl.
+	Frame commands use the stock Doom 3 frameCommand_t, so every stock command
+	(sound, event, trigger, fx, melee, footstep ...) works the same way as in a modelDef.
+
+==============================================================================================
+*/
+struct dnVertexFrameCmd_t {
+	int					frame;		// 0 based, relative to the start of the anim (the .def uses 1 based)
+	frameCommand_t		cmd;
+};
+
+class dnVertexAnimDef {
+public:
+	idStr							name;
+	int								startFrame;
+	int								endFrame;
+	float							fps;
+	idList<dnVertexFrameCmd_t>		frameCommands;		// kept sorted by frame
+
+									dnVertexAnimDef() : startFrame( 0 ), endFrame( 0 ), fps( 24.0f ) {}
+									~dnVertexAnimDef();
+
+	int								NumFrames() const { return endFrame - startFrame + 1; }
+	bool							HasFrameCommands() const { return frameCommands.Num() > 0; }
+};
+
 
 /*
 ==============================================================================================
@@ -54,17 +88,20 @@ public:
 
 	//void						Touch( void ) const;
 
-	const idDict * 				FindAnim(const char* name) const;
+	const dnVertexAnimDef*			FindAnim(const char* name) const;
+
 
 	// Add methods to access and manipulate the animation data
 	const idStr & 				GetModel() const;
-	const idList<idDict> & 		GetAnims() const;
+	const idList<dnVertexAnimDef*>&	GetAnims() const;
 
 	idDict 						animData; // Store animation data here
 
 private:
-	idStr 						model; // MD3 model path
-	idList<idDict> 				anims; // List of animations
+	bool							ParseAnim( idLexer& src, dnVertexAnimDef& def );
+
+	idStr 							model; // MD3 model path
+	idList<dnVertexAnimDef*>		anims; // owned
 };
 
 /*
@@ -85,37 +122,45 @@ public:
 	void						Restore( idRestoreGame *savefile );					// unarchives object from save game file
 
 
-	idRenderModel*				SetModel(const char* modelDecl);
-	void						PlayAnim(const char* animName, bool loop);
+	idRenderModel*				SetModel( const char* modelDecl );
+	void						SetEntity( idEntity* ent ) { entity = ent; }	// needed for frame commands to fire
+
+	void						PlayAnim( const char* animName, bool loop );
 	int							GetCurrentFrame() const { return lerpFrame; }
 	int							GetLastFrame() const { return lastFrame; }
 	float						GetBacklerp() const { return backlerp; }
-	void						Update(void);
-	bool						IsAnimDone(void);
-	void						ClearAllAnims(void);
+	void						Update ( void );
+	bool						IsAnimDone( void );
+	void						ClearAllAnims( void ) ;
 	
 	#ifdef _CENG
-	jointHandle_t				GetJointHandle(const char* name);
-	bool						GetJointTransform(jointHandle_t jointHandle, idVec3& offset, idMat3& axis);
+	jointHandle_t				GetJointHandle( const char* name );
+	bool						GetJointTransform( jointHandle_t jointHandle, idVec3& offset, idMat3& axis );
 	const idJointQuat *			GetDefaultPose( void ) const;
 	#endif
 
 private:
-	const idDict*				currentAnim = nullptr;
+	bool						FireFrameCommands(float from, float to);
+
+	const dnVertexAnimDef*		currentAnim = nullptr;
 	bool						isLooping = false;
 
 	int							lastTime = 0;
 	int							start_frame = 0;
 	int							end_frame = 0;
-	float						fps = 24.0;
+	float						fps = 24.0f;
 
 	int							lerpFrame = 0;
 	float						currentFrame = 0.0f;
 	int							lastFrame = 0;
 	float						backlerp = 0.0f;
 
+	float						lastEventFrame = 0.0f;	// frame position events have been fired up to
+	int							playSerial = 0;			// bumped by PlayAnim so events can detect a re-entrant anim change
+
 	idStr						currentAnimName;
 
 	const dnDeclVertexAnim*		vertexAnim;
 	idRenderModel*				renderModel = nullptr;
+	idEntity*					entity = nullptr;
 };

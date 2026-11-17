@@ -34,8 +34,60 @@ If you have questions concerning this license or the applicable additional terms
 /*
 ========================================
 
+dnVertexAnimDef
+
+========================================
+*/
+
+/*
+=====================
+dnVertexAnimDef::~dnVertexAnimDef
+=====================
+*/
+dnVertexAnimDef::~dnVertexAnimDef() {
+	for ( int i = 0; i < frameCommands.Num(); i++ ) {
+		idAnim::FreeFrameCommand(frameCommands[i].cmd);
+	}
+	frameCommands.Clear();
+}
+
+/*
+=====================
+SkeletalCommandName
+
+Frame commands that look up joints on the entity's skeleton, which vertex models don't have.
+Returns the name if the command can't work on a vertex anim, otherwise NULL.
+=====================
+*/
+static const char* SkeletalCommandName( const frameCommand_t& cmd ) {
+	switch (cmd.type) {
+		case FC_CREATEMISSILE:			return "create_missile";
+		case FC_LAUNCHMISSILE:			return "launch_missile";
+		case FC_FIREMISSILEATTARGET:	return "fire_missile_at_target";
+		case FC_MUZZLEFLASH:			return (cmd.string && cmd.string->Length()) ? "muzzle_flash <joint>" : NULL;
+		default:						return NULL;
+	}
+}
+
+/*
+========================================
+
 dnDeclVertexAnim
 
+Decl layout (frame commands are optional, and use the stock modelDef syntax):
+
+vertexmodeldef zombie {
+	model "models/md3/zombie.md3"
+
+	anim idle 0 40 15
+	anim walk 41 80 24 {
+		frame 5  footstep
+		frame 15 sound_body snd_step
+	}
+}
+
+Frame numbers in the block are 1 based and relative to the start of the anim,
+exactly like a modelDef (frame 1 == start_frame).
 ========================================
 */
 
@@ -62,7 +114,102 @@ dnDeclVertexAnim::DefaultDefinition
 =====================
 */
 const char* dnDeclVertexAnim::DefaultDefinition() const {
-	return "{\n\t\"model\" : \"path/to/model.md3\"\n\t\"anim <name> <start_frame> <end_frame> <fps>\"\n}\n";
+	// FIXME
+	return "{ }";
+	//return "{\n\t\"model\" : \"path/to/model.md3\"\n\t\"anim <name> <start_frame> <end_frame> <fps>\"\n}\n";
+}
+
+/*
+=====================
+dnDeclVertexAnim::ParseAnim
+
+Same checks as idDeclModelDef::ParseAnim. Warns and returns false on error.
+=====================
+*/
+bool dnDeclVertexAnim::ParseAnim( idLexer& src, dnVertexAnimDef& def ) {
+	idToken token;
+
+	if ( !src.ReadToken(&token) ) {
+		src.Warning("Unexpected end of file");
+		return false;
+	}
+	def.name = token;
+
+	if ( FindAnim(def.name.c_str()) ) {
+		src.Warning("Duplicate anim '%s'", def.name.c_str());
+		return false;
+	}
+
+	def.startFrame = src.ParseInt();
+	def.endFrame = src.ParseInt();
+	def.fps = src.ParseFloat();	// 0 is fine, it holds start_frame
+
+	if ( def.startFrame < 0 || def.endFrame < def.startFrame ) {
+		src.Warning("Anim '%s': invalid frame range %d to %d", def.name.c_str(), def.startFrame, def.endFrame);
+		return false;
+	}
+	if ( def.fps < 0.0f ) {
+		src.Warning("Anim '%s': invalid fps %f", def.name.c_str(), def.fps);
+		return false;
+	}
+
+	// parse any frame commands
+	if ( src.CheckTokenString("{") ) {
+		while (1) {
+			if (!src.ReadToken(&token)) {
+				src.Warning("Unexpected end of file");
+				return false;
+			}
+			if ( token == "}" ) {
+				break;
+			}
+			else if ( token == "frame" ) {
+				// make sure we don't have any line breaks while reading the frame command so the error line # will be correct
+				if (!src.ReadTokenOnLine(&token)) {
+					src.Warning("Missing frame # after 'frame'");
+					return false;
+				}
+				if ( token.type == TT_PUNCTUATION && token == "-" ) {
+					src.Warning("Invalid frame # after 'frame'");
+					return false;
+				} else if ( token.type != TT_NUMBER || (token.subtype & TT_FLOAT) ) {
+					src.Warning("expected integer value, found '%s'", token.c_str());
+					return false;
+				}
+
+				const int framenum = token.GetIntValue();
+				if ( framenum < 1 || framenum > def.NumFrames() ) {
+					src.Warning("Frame %d out of range", framenum);
+					return false;
+				}
+
+				dnVertexFrameCmd_t entry;
+				entry.frame = framenum - 1;	// frame numbers are 1 based in the decl, 0 based internally
+
+				// no modelDef: joint names can't be checked
+				const char* err = idAnim::ParseFrameCommand(NULL, src, entry.cmd);
+				if ( err ) {
+					src.Warning("%s", err);
+					idAnim::FreeFrameCommand(entry.cmd);
+					return false;
+				}
+
+				const char* skeletal = SkeletalCommandName(entry.cmd);
+				if ( skeletal ) {
+					src.Warning("'%s' needs skeletal joints and is not supported on vertex animations", skeletal);
+					idAnim::FreeFrameCommand(entry.cmd);
+					return false;
+				}
+
+				def.frameCommands.Append(entry);
+			} else {
+				src.Warning("Unknown command '%s'", token.c_str());
+				return false;
+			}
+		}
+	}
+
+	return true;
 }
 
 /*
@@ -70,7 +217,7 @@ const char* dnDeclVertexAnim::DefaultDefinition() const {
 dnDeclVertexAnim::Parse
 =====================
 */
-bool dnDeclVertexAnim::Parse(const char* text, const int textLength) {
+bool dnDeclVertexAnim::Parse( const char* text, const int textLength ) {
 	idLexer src;
 	idToken token;
 
@@ -78,32 +225,52 @@ bool dnDeclVertexAnim::Parse(const char* text, const int textLength) {
 	src.SetFlags(DECL_LEXER_FLAGS);
 	src.SkipUntilString("{");
 
-	while (src.ReadToken(&token)) {
-		if (token == "model") {
-			src.ReadToken(&token);
-			model = token;
-		}
-		else if (token == "anim") {
-			idDict anim;
-			src.ReadToken(&token); // Read anim name
-			anim.Set("name", token);
-
-			src.ReadToken(&token); // Read start frame
-			anim.Set("start_frame", token);
-
-			src.ReadToken(&token); // Read end frame
-			anim.Set("end_frame", token);
-
-			src.ReadToken(&token); // Read end frame
-			anim.Set("fps", token);
-
-			anims.Append(anim);
-		}
-		else if (token == "}") {
+	while (1) {
+		if ( !src.ReadToken(&token) ) {
 			break;
 		}
-		else {
+
+		if ( token == "}" ) {
+			break;
+		}
+
+		if ( token == "model" ) {
+			if ( !src.ReadToken(&token) ) {
+				src.Warning("Unexpected end of file");
+				MakeDefault();
+				return false;
+			}
+
+			// same as 'mesh' in a modelDef
+			idRenderModel* m = renderModelManager->FindModel(token);
+			if ( !m ) {
+				src.Warning("Model '%s' not found", token.c_str());
+				MakeDefault();
+				return false;
+			}
+			if ( m->IsDefaultModel() ) {
+				src.Warning("Model '%s' defaulted", token.c_str());
+				MakeDefault();
+				return false;
+			}
+			model = token;
+		} else if ( token == "anim")  {
+			if ( model.IsEmpty() ) {
+				src.Warning("Must specify model before defining anims");
+				MakeDefault();
+				return false;
+			}
+
+			dnVertexAnimDef* def = new dnVertexAnimDef;
+			if ( !ParseAnim(src, *def) ) {
+				delete def;
+				MakeDefault();
+				return false;
+			}
+			anims.Append(def);
+		} else {
 			src.Warning("Unknown token: %s", token.c_str());
+			MakeDefault();
 			return false;
 		}
 	}
@@ -115,14 +282,12 @@ bool dnDeclVertexAnim::Parse(const char* text, const int textLength) {
 dnDeclVertexAnim::FindAnim
 =====================
 */
-const idDict* dnDeclVertexAnim::FindAnim(const char* name) const {
+const dnVertexAnimDef* dnDeclVertexAnim::FindAnim( const char* name ) const {
 	for (int i = 0; i < anims.Num(); i++) {
-		idStr animName = anims[i].GetString("name");
-		if (animName == name) {
-			return &anims[i];
+		if (anims[i]->name.Icmp(name) == 0) {
+			return anims[i];
 		}
 	}
-
 	return nullptr;
 }
 
@@ -150,7 +315,7 @@ const idStr& dnDeclVertexAnim::GetModel() const {
 dnDeclVertexAnim::GetAnims
 =====================
 */
-const idList<idDict>& dnDeclVertexAnim::GetAnims() const {
+const idList<dnVertexAnimDef*>& dnDeclVertexAnim::GetAnims() const {
 	return anims;
 }
 
@@ -207,20 +372,28 @@ void dnVertexAnimator::Restore( idRestoreGame *savefile ) {
 dnVertexAnimator::SetModel
 =====================
 */
-idRenderModel* dnVertexAnimator::SetModel(const char* modelDecl) {
+idRenderModel* dnVertexAnimator::SetModel( const char* modelDecl ) {
 	vertexAnim = (const dnDeclVertexAnim *)declManager->FindType(DECL_VERTEXMODELDEF, modelDecl, false);
 	if (!vertexAnim) {
 		gameLocal.Warning("dnVertexAnimator::SetModel: Failed to load vertex model decl %s\n", modelDecl);
 		return nullptr;
 	}
 
+	currentAnim = nullptr;
+	currentAnimName.Clear();
+
 	start_frame = 0;
 	end_frame = 0;
 	currentFrame = 0;
-	isLooping = false;
+	lerpFrame = 0;
+	lastFrame = 0;
+	backlerp = 0.0f;
+	lastEventFrame = 0.0f;
 
-	int currentTime = sys->GetMilliseconds();
-	lastTime = currentTime;
+	isLooping = false;
+	playSerial++;
+
+	lastTime = gameLocal.time;
 
 	renderModel = renderModelManager->FindModel(vertexAnim->GetModel());
 	return renderModel;
@@ -231,32 +404,78 @@ idRenderModel* dnVertexAnimator::SetModel(const char* modelDecl) {
 dnVertexAnimator::PlayAnim
 =====================
 */
-void dnVertexAnimator::PlayAnim(const char* animName, bool loop) {
+void dnVertexAnimator::PlayAnim( const char* animName, bool loop ) {
 
 	//Dynamix Test - tag names
 	//for (int i = 0; i < 8; i++) {
 	//common->DPrintf("Tag #%d name: %s\n", i, renderModel->GetJointName((jointHandle_t)i));
 	//}
 
-	currentAnim = vertexAnim->FindAnim(animName);
-	if (currentAnim == nullptr) {
+	if ( vertexAnim == nullptr ) {
+		return;
+	}
+
+	const dnVertexAnimDef* def = vertexAnim->FindAnim(animName);
+	if ( def == nullptr ) {
 		common->Warning("Failed to find vertex animation %s\n", animName);
 		return;
 	}
 
-	if (isLooping && loop && currentAnimName == animName) {
+	// Looping this anim already
+	if ( currentAnim == def && isLooping && loop) {
 		return;
 	}
 
+	currentAnim = def;
 	currentAnimName = animName;
+	playSerial++;	// lets a running frame command notice that it changed the anim
 
-	int currentTime = sys->GetMilliseconds();
-	lastTime = currentTime;
+	lastTime = gameLocal.time;
 
 	isLooping = loop;
-	start_frame = currentFrame = currentAnim->GetInt("start_frame");
-	end_frame = currentAnim->GetInt("end_frame");
-	fps = currentAnim->GetFloat("fps");
+	start_frame = def->startFrame;
+	end_frame = def->endFrame;
+	fps = def->fps;
+	currentFrame = (float)start_frame;
+
+	// events fire for frames in (lastEventFrame, currentFrame], so start one before to fire frame 1
+	lastEventFrame = (float)start_frame - 1.0f;
+}
+
+/*
+=====================
+dnVertexAnimator::FireFrameCommands
+
+Runs the frame commands for every frame f with from < f <= to (absolute frame numbers).
+Returns false if a command changed the animation (PlayAnim / ClearAllAnims / SetModel),
+in which case the caller must stop using its local state.
+=====================
+*/
+bool dnVertexAnimator::FireFrameCommands( float from, float to ) {
+	if ( currentAnim == nullptr || !currentAnim->HasFrameCommands() ) {
+		return true;
+	}
+	if ( entity == nullptr ) {
+		return true;	// nothing to run commands on
+	}
+
+	const int serial = playSerial;
+	const dnVertexAnimDef* def = currentAnim;
+
+	for ( int i = 0; i < def->frameCommands.Num(); i++ ) {
+		const dnVertexFrameCmd_t& fc = def->frameCommands[i];
+		const float f = (float)(def->startFrame + fc.frame);
+
+		if ( f > from && f <= to ) {
+			idAnim::ExecuteFrameCommand(NULL, def->name.c_str(), fc.frame, entity, fc.cmd);
+
+			// the command may have started a different anim (or deleted the entity's anim state)
+			if ( serial != playSerial ) {
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 /*
@@ -265,66 +484,73 @@ dnVertexAnimator::Update
 =====================
 */
 
-void dnVertexAnimator::Update(void) {
-	if (vertexAnim == nullptr || currentAnim == nullptr) {
+void dnVertexAnimator::Update( void ) {
+	if ( vertexAnim == nullptr || currentAnim == nullptr ) {
 		gameLocal.Error("Testing Animator broken");
 		return;
 	}
 
 	// Get the current time and calculate the delta time in seconds
-	int currentTime = sys->GetMilliseconds();
+	int currentTime = gameLocal.time;
 	int deltaTime = currentTime - lastTime;
 	lastTime = currentTime;
+	if ( deltaTime < 0 ) {
+		deltaTime = 0;
+	} else if ( deltaTime > 100 ) {
+		// Dynamix changing this
+		deltaTime = 100;	// never skip/flood events after a hitch or load
+	}
 	float deltaTimeSeconds = deltaTime / 1000.0f;
 
+	currentFrame += deltaTimeSeconds * fps;
 
-	// Calculate the total animation duration in seconds
-	//float animSpeed = 24.0f;
-	float animSpeed = fps;
-	//int frameCount = end_frame - start_frame;
-	//float animDuration = frameCount / animSpeed;
+	bool valid = true;
+	const float span = (float)(end_frame - start_frame);
 
-	// Update the current frame based on the elapsed time
-	float framesAdvanced = deltaTimeSeconds * animSpeed;
-	//lastFrame = currentFrame;
-	currentFrame += deltaTimeSeconds * animSpeed;
-	lerpFrame = currentFrame + 1;
-	//gameLocal.Printf("Current frame %f, testint %d\n", currentFrame, testint);
-	lastFrame = lerpFrame - 1;
-
-
-	// Handle looping or clamping to end_frame
-	if (currentFrame >= end_frame) {
-		if (isLooping) {
-			currentFrame = start_frame;	
-			lerpFrame = start_frame;
+	if ( currentFrame >= end_frame ) {
+		if (isLooping && span > 0.0f) {
+			// finish out this cycle, then wrap keeping the overshoot
+			valid = FireFrameCommands(lastEventFrame, (float)end_frame);
+			if (valid) {
+				float over = currentFrame - (float)end_frame;
+				currentFrame = (float)start_frame + fmodf(over, span);
+				lastEventFrame = (float)start_frame - 1.0f;	// so the start frame fires again
+			}
 		}
 		else {
-			currentFrame = end_frame;
-			lerpFrame = end_frame;
-			lastFrame = end_frame;
-		}		
+			currentFrame = (float)end_frame;
+		}
 	}
 
-	if (lastFrame <= start_frame) {
+	if ( valid ) {
+		valid = FireFrameCommands(lastEventFrame, currentFrame);
+		if ( valid ) {
+			lastEventFrame = currentFrame;
+		}
+	}
+
+	if ( !valid ) {
+		// a command started a new anim; PlayAnim already set up the state, just refresh lerp values
+		if ( currentAnim == nullptr ) {
+			return;
+		}
+	}
+
+	// lerp values
+	if ( currentFrame >= end_frame ) {
+		currentFrame = (float)end_frame;
+		lerpFrame = end_frame;
+		lastFrame = end_frame;
+	} else {
+		lerpFrame = (int)currentFrame + 1;
+		lastFrame = lerpFrame - 1;
+	}
+
+	if ( lastFrame <= start_frame ) {
 		lastFrame = start_frame;
 	}
 
-	//// Calculate the backlerp value
-	float frameFraction = fmod(framesAdvanced, 1.0f);
-	backlerp = lerpFrame - currentFrame;
-	//backlerp = 1.0f - frontlerp;
-//	backlerp = 1.0f - deltaTimeSeconds;
-	//backlerp = 0.5f;
-	////gameLocal.Printf("Backlerp animator: %f\n", backlerp);
-
-	//Dynamix backlerp value
-	//int oldFrame = (int)(currentFrame);
-	//int newFrame = oldFrame + 1;
-
-	//float frontlerp = currentFrame - oldFrame;
-	//backlerp = 1.0f - frontlerp;
-	//gameLocal.Printf("Backlerp animator: %f\n", backlerp);
+	backlerp = (float)lerpFrame - currentFrame;
 }
 
 /*
@@ -332,8 +558,8 @@ void dnVertexAnimator::Update(void) {
 dnVertexAnimator::IsAnimDone
 =====================
 */
-bool dnVertexAnimator::IsAnimDone(void) {
-	if (isLooping) {
+bool dnVertexAnimator::IsAnimDone( void ) {
+	if ( isLooping ) {
 		return false;
 	}
 	return currentFrame >= end_frame;
@@ -344,8 +570,9 @@ bool dnVertexAnimator::IsAnimDone(void) {
 dnVertexAnimator::ClearAllAnims
 =====================
 */
-void dnVertexAnimator::ClearAllAnims(void)  {
+void dnVertexAnimator::ClearAllAnims( void )  {
 	currentAnim = nullptr;
+	playSerial++;
 }
 
 #ifdef _CENG
@@ -355,11 +582,12 @@ dnVertexAnimator::GetJointHandle
 =====================
 */
 
-jointHandle_t dnVertexAnimator::GetJointHandle(const char* name) {
+jointHandle_t dnVertexAnimator::GetJointHandle( const char* name ) {
 	//return INVALID_JOINT;
 	
-	if (renderModel == nullptr)
+	if ( renderModel == nullptr ) {
 		return INVALID_JOINT;
+	}
 
 	return renderModel->GetJointHandle( name );
 	
@@ -371,7 +599,7 @@ dnVertexAnimator::GetJointTransform
 =====================
 */
 
-bool dnVertexAnimator::GetJointTransform(jointHandle_t jointHandle, idVec3& offset, idMat3& axis) {
+bool dnVertexAnimator::GetJointTransform( jointHandle_t jointHandle, idVec3& offset, idMat3& axis ) {
 	const idJointQuat *pose;
 
 	pose = GetDefaultPose();

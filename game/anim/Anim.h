@@ -313,6 +313,11 @@ public:
 	void						CallFrameCommands( idEntity *ent, int from, int to ) const;
 	bool						HasFrameCommands( void ) const;
 
+	// Dynamix shared frame command parsing / execution, also used by dnVertexAnimator (modelDef may be NULL there)
+	static const char			*ParseFrameCommand( const class idDeclModelDef *modelDef, idLexer &src, frameCommand_t &fc );
+	static void					ExecuteFrameCommand( const class idDeclModelDef *modelDef, const char *animName, int frame, idEntity *ent, const frameCommand_t &command );
+	static void					FreeFrameCommand( frameCommand_t &fc ) { delete fc.string; fc.string = NULL; }
+
 								// returns first frame (zero based) that command occurs.  returns -1 if not found.
 	int							FindFrameForFrameCommand( frameCommandType_t framecommand, const frameCommand_t **command ) const;
 	void						SetAnimFlags( const animFlags_t &animflags );
