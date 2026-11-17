@@ -2628,6 +2628,111 @@ bool idDeclModelDef::ParseAnim( idLexer &src, int numDefaultAnims ) {
 	return true;
 }
 
+
+/*
+================
+idDeclModelDef::ParseAnimSet
+
+An animset maps named clips to frame ranges in one MD5 animation file.
+================
+*/
+bool idDeclModelDef::ParseAnimSet( idLexer &src, int numDefaultAnims ) {
+	idToken fileToken, token, realname;
+	idStr filename, alias;
+	idMD5Anim *md5anim;
+	idAnim *anim;
+	int startFrame, frameCount, loopFrame, fps, i, len;
+	animFlags_t flags;
+
+	if ( !src.ReadToken( &fileToken ) ) {
+		src.Warning( "Expected MD5 animation filename after 'animset'" );
+		return false;
+	}
+	filename = fileToken;
+	if ( !src.ExpectTokenString( "{" ) ) {
+		return false;
+	}
+
+	while ( src.ReadToken( &realname ) ) {
+		if ( realname == "}" ) {
+			return true;
+		}
+		alias = realname;
+		for ( i = 0; i < anims.Num(); i++ ) {
+			if ( !strcmp( anims[i]->FullName(), realname.c_str() ) ) break;
+		}
+		if ( i < anims.Num() && i >= numDefaultAnims ) {
+			src.Warning( "Duplicate anim '%s' in animset", realname.c_str() );
+			return false;
+		}
+		if ( i < numDefaultAnims ) anim = anims[i];
+		else {
+			anim = new idAnim();
+			anims.Append( anim );
+		}
+
+		len = alias.Length();
+		for ( i = len - 1; i > 0; i-- ) {
+			if ( !isdigit( alias[i] ) ) break;
+		}
+		if ( i <= 0 ) {
+			src.Warning( "Invalid animation name '%s'", alias.c_str() );
+			return false;
+		}
+		alias.CapLength( i + 1 );
+
+		startFrame = src.ParseInt();
+		frameCount = src.ParseInt();
+		loopFrame = src.ParseInt(); // Reserved for future Doom 3 loop-frame support.
+		(void)loopFrame;
+		fps = src.ParseInt();
+		if ( startFrame < 0 || frameCount <= 0 || loopFrame < -1 || fps <= 0 ) {
+			src.Warning( "Invalid animset range or frame rate for '%s'", realname.c_str() );
+			return false;
+		}
+		md5anim = animationLib.GetAnimSlice( filename, startFrame, frameCount, fps );
+		if ( !md5anim ) return false;
+		md5anim->CheckModelHierarchy( modelHandle );
+
+		const idMD5Anim *md5anims[ ANIM_MaxSyncedAnims ];
+		memset( md5anims, 0, sizeof( md5anims ) );
+		md5anims[0] = md5anim;
+		anim->SetAnim( this, realname, alias, 1, md5anims );
+		memset( &flags, 0, sizeof( flags ) );
+
+		if ( src.CheckTokenString( "{" ) ) {
+			while ( src.ReadToken( &token ) ) {
+				if ( token == "}" ) break;
+				if ( token == "prevent_idle_override" ) flags.prevent_idle_override = true;
+				else if ( token == "random_cycle_start" ) flags.random_cycle_start = true;
+				else if ( token == "ai_no_turn" ) flags.ai_no_turn = true;
+				else if ( token == "anim_turn" ) flags.anim_turn = true;
+				else if ( token == "rate" ) anim->SetPlaybackRate( src.ParseFloat() );
+				else if ( token == "frame" ) {
+					int framenum;
+					const char *err;
+					if ( !src.ReadTokenOnLine( &token ) || token.type != TT_NUMBER || token.subtype == TT_FLOAT ) {
+						src.Warning( "Invalid frame number in animset '%s'", realname.c_str() );
+						return false;
+					}
+					framenum = token.GetIntValue();
+					err = anim->AddFrameCommand( this, framenum, src, NULL );
+					if ( err ) {
+						src.Warning( "%s", err );
+						return false;
+					}
+				} else {
+					src.Warning( "Unknown animset command '%s'", token.c_str() );
+					return false;
+				}
+			}
+		}
+		anim->SetAnimFlags( flags );
+	}
+	src.Warning( "Unexpected end of file in animset" );
+	return false;
+}
+
 /*
 ================
 idDeclModelDef::Parse
@@ -2768,6 +2873,16 @@ bool idDeclModelDef::Parse( const char *text, const int textLength ) {
 			}
 			if ( !num ) {
 				src.Warning( "Couldn't find anim '%s' to remove", token2.c_str() );
+				MakeDefault();
+				return false;
+			}
+		} else if ( token == "animset" ) {
+			if ( !modelHandle ) {
+				src.Warning( "Must specify mesh before defining animsets" );
+				MakeDefault();
+				return false;
+			}
+			if ( !ParseAnimSet( src, numDefaultAnims ) ) {
 				MakeDefault();
 				return false;
 			}

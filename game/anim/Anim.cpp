@@ -53,6 +53,10 @@ idMD5Anim::idMD5Anim() {
 	numJoints	= 0;
 	frameRate	= 24;
 	animLength	= 0;
+	firstFrame = 0;
+	animSetLoop = false;
+	clipFrameCount = 0;
+	clipFrameRate = 0;
 	totaldelta.Zero();
 }
 
@@ -75,6 +79,11 @@ void idMD5Anim::Free( void ) {
 	numJoints	= 0;
 	frameRate	= 24;
 	animLength	= 0;
+	firstFrame = 0;
+	animSetLoop = false;
+	clipFrameCount = 0;
+	clipFrameRate = 0;
+	sourceName = "";
 	name		= "";
 
 	totaldelta.Zero();
@@ -135,11 +144,15 @@ idMD5Anim::Reload
 ====================
 */
 bool idMD5Anim::Reload( void ) {
-	idStr filename;
-
-	filename = name;
+	idStr filename = name;
+	if ( clipFrameCount > 0 ) {
+		filename = sourceName;
+		int start = firstFrame;
+		int count = clipFrameCount;
+		int fps = clipFrameRate;
+		return LoadAnimSlice( filename, start, count, fps );
+	}
 	Free();
-
 	return LoadAnim( filename );
 }
 
@@ -333,6 +346,83 @@ bool idMD5Anim::LoadAnim( const char *filename ) {
 
 /*
 ====================
+idMD5Anim::LoadAnimSlice
+
+Load a clip from a frame range in an MD5 animation.  The clip owns its
+range of decoded frames; the manager caches identical clip definitions.
+====================
+*/
+bool idMD5Anim::LoadAnimSlice( const char *filename, int start, int count, int fps ) {
+	idList<idBounds> slicedBounds;
+	idList<float> slicedFrames;
+	int sourceFrames, i, c;
+	float rootStart[3] = { 0.0f, 0.0f, 0.0f };
+	float rootEnd[3] = { 0.0f, 0.0f, 0.0f };
+	int rootBits;
+
+	if ( start < 0 || count <= 0 || fps <= 0 ) {
+		return false;
+	}
+	if ( !LoadAnim( filename ) ) {
+		return false;
+	}
+	sourceFrames = numFrames;
+	if ( start + count > sourceFrames ) {
+		gameLocal.Warning( "Animset range %d..%d exceeds '%s' (%d frames)", start, start + count - 1, filename, sourceFrames );
+		Free();
+		return false;
+	}
+
+	slicedBounds.SetNum( count );
+	for ( i = 0; i < count; i++ ) {
+		slicedBounds[i] = bounds[start + i];
+	}
+	if ( numAnimatedComponents > 0 ) {
+		slicedFrames.SetNum( count * numAnimatedComponents );
+		for ( i = 0; i < count; i++ ) {
+			for ( c = 0; c < numAnimatedComponents; c++ ) {
+				slicedFrames[i * numAnimatedComponents + c] =
+					componentFrames[(start + i) * numAnimatedComponents + c];
+			}
+		}
+	}
+
+	// Root translation in the source file is relative to its first frame.
+	// Rebase it to this clip's first frame and calculate this clip's delta.
+	rootBits = numAnimatedComponents ? jointInfo[0].animBits : 0;
+	for ( c = 0; c < 3; c++ ) {
+		int bit = ( c == 0 ) ? ANIM_TX : ( c == 1 ) ? ANIM_TY : ANIM_TZ;
+		if ( rootBits & bit ) {
+			int componentIndex = jointInfo[0].firstComponent;
+			if ( c > 0 && ( rootBits & ANIM_TX ) ) componentIndex++;
+			if ( c > 1 && ( rootBits & ANIM_TY ) ) componentIndex++;
+			rootStart[c] = slicedFrames[componentIndex];
+			rootEnd[c] = slicedFrames[(count - 1) * numAnimatedComponents + componentIndex];
+			for ( i = 0; i < count; i++ ) {
+				slicedFrames[i * numAnimatedComponents + componentIndex] -= rootStart[c];
+			}
+		}
+	}
+	totaldelta.Set( rootEnd[0] - rootStart[0], rootEnd[1] - rootStart[1], rootEnd[2] - rootStart[2] );
+
+	bounds.SetNum( count );
+	for ( i = 0; i < count; i++ ) bounds[i] = slicedBounds[i];
+	componentFrames.SetNum( count * numAnimatedComponents );
+	for ( i = 0; i < count * numAnimatedComponents; i++ ) componentFrames[i] = slicedFrames[i];
+	numFrames = count;
+	firstFrame = start;
+	animSetLoop = true;
+	sourceName = filename;
+	clipFrameCount = count;
+	clipFrameRate = fps;
+	frameRate = fps;
+	animLength = ( count * 1000 + fps - 1 ) / fps;
+	name = va( "%s#%d:%d@%d", filename, start, count, fps );
+	return true;
+}
+
+/*
+====================
 idMD5Anim::IncreaseRefs
 ====================
 */
@@ -409,7 +499,7 @@ void idMD5Anim::ConvertTimeToFrame( int time, int cyclecount, frameBlend_t &fram
 
 	frameTime			= time * frameRate;
 	frameNum			= frameTime / 1000;
-	frame.cycleCount	= frameNum / ( numFrames - 1 );
+	frame.cycleCount	= frameNum / ( animSetLoop ? numFrames : ( numFrames - 1 ) );
 
 	if ( ( cyclecount > 0 ) && ( frame.cycleCount >= cyclecount ) ) {
 		frame.cycleCount	= cyclecount - 1;
@@ -420,7 +510,7 @@ void idMD5Anim::ConvertTimeToFrame( int time, int cyclecount, frameBlend_t &fram
 		return;
 	}
 
-	frame.frame1 = frameNum % ( numFrames - 1 );
+	frame.frame1 = frameNum % ( animSetLoop ? numFrames : ( numFrames - 1 ) );
 	frame.frame2 = frame.frame1 + 1;
 	if ( frame.frame2 >= numFrames ) {
 		frame.frame2 = 0;
@@ -832,7 +922,7 @@ void idMD5Anim::GetSingleFrame( int framenum, idJointQuat *joints, const int *in
 	// copy the baseframe
 	SIMDProcessor->Memcpy( joints, baseFrame.Ptr(), baseFrame.Num() * sizeof( baseFrame[ 0 ] ) );
 
-	if ( ( framenum == 0 ) || !numAnimatedComponents ) {
+	if ( ( ( framenum == 0 ) && !animSetLoop ) || !numAnimatedComponents ) {
 		// just use the base frame
 		return;
 	}
@@ -981,6 +1071,29 @@ idMD5Anim *idAnimManager::GetAnim( const char *name ) {
 		animations.Set( filename, anim );
 	}
 
+	return anim;
+}
+
+
+/*
+================
+idAnimManager::GetAnimSlice
+================
+*/
+idMD5Anim *idAnimManager::GetAnimSlice( const char *name, int startFrame, int frameCount, int fps ) {
+	idStr key = va( "%s#%d:%d@%d", name, startFrame, frameCount, fps );
+	idMD5Anim **animptrptr;
+	idMD5Anim *anim;
+	if ( animations.Get( key, &animptrptr ) ) {
+		return *animptrptr;
+	}
+	anim = new idMD5Anim();
+	if ( !anim->LoadAnimSlice( name, startFrame, frameCount, fps ) ) {
+		gameLocal.Warning( "Couldn't load animset clip '%s' (%d %d %d)", name, startFrame, frameCount, fps );
+		delete anim;
+		return NULL;
+	}
+	animations.Set( key, anim );
 	return anim;
 }
 

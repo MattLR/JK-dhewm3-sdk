@@ -231,6 +231,11 @@ private:
 	int						numFrames;
 	int						frameRate;
 	int						animLength;
+	int firstFrame;
+	bool animSetLoop;
+	idStr sourceName;
+	int clipFrameCount;
+	int clipFrameRate;
 	int						numJoints;
 	int						numAnimatedComponents;
 	idList<idBounds>		bounds;
@@ -250,6 +255,7 @@ public:
 	size_t					Allocated( void ) const;
 	size_t					Size( void ) const { return sizeof( *this ) + Allocated(); };
 	bool					LoadAnim( const char *filename );
+	bool LoadAnimSlice( const char *filename, int startFrame, int frameCount, int fps );
 
 	void					IncreaseRefs( void ) const;
 	void					DecreaseRefs( void ) const;
@@ -383,6 +389,7 @@ public:
 private:
 	void						CopyDecl( const idDeclModelDef *decl );
 	bool						ParseAnim( idLexer &src, int numDefaultAnims );
+	bool						ParseAnimSet( idLexer &src, int numDefaultAnims );
 
 private:
 	idVec3						offset;
@@ -645,6 +652,7 @@ public:
 
 	void						Shutdown( void );
 	idMD5Anim *					GetAnim( const char *name );
+	idMD5Anim *					GetAnimSlice( const char *name, int startFrame, int frameCount, int fps );
 	void						ReloadAnims( void );
 	void						ListAnims( void ) const;
 	int							JointIndex( const char *name );
