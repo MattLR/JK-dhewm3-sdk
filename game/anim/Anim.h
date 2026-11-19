@@ -256,6 +256,7 @@ public:
 	size_t					Size( void ) const { return sizeof( *this ) + Allocated(); };
 	bool					LoadAnim( const char *filename );
 	bool LoadAnimSlice( const char *filename, int startFrame, int frameCount, int fps );
+	bool					IsClip( void ) const { return clipFrameCount > 0; }
 
 	void					IncreaseRefs( void ) const;
 	void					DecreaseRefs( void ) const;

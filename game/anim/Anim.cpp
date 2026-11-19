@@ -348,13 +348,13 @@ bool idMD5Anim::LoadAnim( const char *filename ) {
 ====================
 idMD5Anim::LoadAnimSlice
 
-Load a clip from a frame range in an MD5 animation.  The clip owns its
-range of decoded frames; the manager caches identical clip definitions.
+Load a clip from a frame range in an MD5 animation.  The file is parsed once, by
+animationLib.GetAnim, and every clip is cut from that cached copy.  The clip still owns
+its own range of frames, and the manager caches identical clip definitions.
 ====================
 */
 bool idMD5Anim::LoadAnimSlice( const char *filename, int start, int count, int fps ) {
-	idList<idBounds> slicedBounds;
-	idList<float> slicedFrames;
+	const idMD5Anim *master;
 	int sourceFrames, i, c;
 	float rootStart[3] = { 0.0f, 0.0f, 0.0f };
 	float rootEnd[3] = { 0.0f, 0.0f, 0.0f };
@@ -363,27 +363,36 @@ bool idMD5Anim::LoadAnimSlice( const char *filename, int start, int count, int f
 	if ( start < 0 || count <= 0 || fps <= 0 ) {
 		return false;
 	}
-	if ( !LoadAnim( filename ) ) {
+
+	// the whole file, parsed once and shared by every clip cut from it
+	master = animationLib.GetAnim( filename );
+	if ( !master ) {
 		return false;
 	}
-	sourceFrames = numFrames;
+	sourceFrames = master->numFrames;
 	if ( start + count > sourceFrames ) {
 		gameLocal.Warning( "Animset range %d..%d exceeds '%s' (%d frames)", start, start + count - 1, filename, sourceFrames );
-		Free();
 		return false;
 	}
 
-	slicedBounds.SetNum( count );
+	Free();
+
+	numJoints = master->numJoints;
+	numAnimatedComponents = master->numAnimatedComponents;
+	jointInfo = master->jointInfo;
+	baseFrame = master->baseFrame;
+
+	bounds.SetGranularity( 1 );
+	bounds.SetNum( count );
 	for ( i = 0; i < count; i++ ) {
-		slicedBounds[i] = bounds[start + i];
+		bounds[i] = master->bounds[start + i];
 	}
-	if ( numAnimatedComponents > 0 ) {
-		slicedFrames.SetNum( count * numAnimatedComponents );
-		for ( i = 0; i < count; i++ ) {
-			for ( c = 0; c < numAnimatedComponents; c++ ) {
-				slicedFrames[i * numAnimatedComponents + c] =
-					componentFrames[(start + i) * numAnimatedComponents + c];
-			}
+	componentFrames.SetGranularity( 1 );
+	componentFrames.SetNum( count * numAnimatedComponents );
+	for ( i = 0; i < count; i++ ) {
+		for ( c = 0; c < numAnimatedComponents; c++ ) {
+			componentFrames[i * numAnimatedComponents + c] =
+				master->componentFrames[(start + i) * numAnimatedComponents + c];
 		}
 	}
 
@@ -396,19 +405,15 @@ bool idMD5Anim::LoadAnimSlice( const char *filename, int start, int count, int f
 			int componentIndex = jointInfo[0].firstComponent;
 			if ( c > 0 && ( rootBits & ANIM_TX ) ) componentIndex++;
 			if ( c > 1 && ( rootBits & ANIM_TY ) ) componentIndex++;
-			rootStart[c] = slicedFrames[componentIndex];
-			rootEnd[c] = slicedFrames[(count - 1) * numAnimatedComponents + componentIndex];
+			rootStart[c] = componentFrames[componentIndex];
+			rootEnd[c] = componentFrames[(count - 1) * numAnimatedComponents + componentIndex];
 			for ( i = 0; i < count; i++ ) {
-				slicedFrames[i * numAnimatedComponents + componentIndex] -= rootStart[c];
+				componentFrames[i * numAnimatedComponents + componentIndex] -= rootStart[c];
 			}
 		}
 	}
 	totaldelta.Set( rootEnd[0] - rootStart[0], rootEnd[1] - rootStart[1], rootEnd[2] - rootStart[2] );
 
-	bounds.SetNum( count );
-	for ( i = 0; i < count; i++ ) bounds[i] = slicedBounds[i];
-	componentFrames.SetNum( count * numAnimatedComponents );
-	for ( i = 0; i < count * numAnimatedComponents; i++ ) componentFrames[i] = slicedFrames[i];
 	numFrames = count;
 	firstFrame = start;
 	animSetLoop = true;
@@ -1106,9 +1111,17 @@ void idAnimManager::ReloadAnims( void ) {
 	int			i;
 	idMD5Anim	**animptr;
 
+	// whole files first, the clips are cut from them
 	for( i = 0; i < animations.Num(); i++ ) {
 		animptr = animations.GetIndex( i );
-		if ( animptr && *animptr ) {
+		if ( animptr && *animptr && !( *animptr )->IsClip() ) {
+			( *animptr )->Reload();
+		}
+	}
+
+	for( i = 0; i < animations.Num(); i++ ) {
+		animptr = animations.GetIndex( i );
+		if ( animptr && *animptr && ( *animptr )->IsClip() ) {
 			( *animptr )->Reload();
 		}
 	}
