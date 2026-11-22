@@ -107,6 +107,7 @@ private:
 
 public:
 	idVarDef					*def;						// a def that points to this type
+	int							reloadGen;					// hot reload generation this type was created in (0 = startup)
 
 						idTypeDef( const idTypeDef &other );
 						idTypeDef( etype_t etype, idVarDef *edef, const char *ename, int esize, idTypeDef *aux );
@@ -321,6 +322,7 @@ public:
 	varEval_t				value;
 	idVarDef *				scope;			// function, namespace, or object the var was defined in
 	int						numUsers;		// number of users if this is a constant
+	int						reloadGen;		// hot reload generation this def was created in (0 = startup)
 
 	typedef enum {
 		uninitialized, initializedVariable, initializedConstant, stackVariable
@@ -468,6 +470,11 @@ private:
 	int											top_defs;
 	int											top_files;
 
+	// hot reloading, see ReloadFile()
+	bool										reloading;			// true while a hot reloaded file is being compiled
+	int											reloadGen;			// 0 after startup, incremented by every ReloadFile()
+	idStrList									reloadedFiles;		// files reapplied by ReapplyReloads() after a map load
+
 	void										CompileStats( void );
 	byte										*ReserveMem(int size);
 	idVarDef									*AllocVarDef(idTypeDef *type, const char *name, idVarDef *scope);
@@ -495,6 +502,20 @@ public:
 	void										DisassembleStatement( idFile *file, int instructionPointer ) const;
 	void										Disassemble( void ) const;
 	void										FreeData( void );
+
+	// Hot reloading.  ReloadFile() compiles a script file on top of the running program.  Everything
+	// the file defines (object types, functions, global variables) is *appended* as a new version
+	// that shadows the old one for name lookups made from now on, e.g. spawning an entity with a
+	// "scriptobject" key.  Nothing that already exists is modified, so running threads and entities
+	// keep using the code and object layout they were created with.
+	// Returns false (and leaves the program untouched) if the file doesn't compile.
+	bool										ReloadFile( const char *filename );
+	void										ReapplyReloads( void );		// call after Restart() when starting a new map
+	bool										IsReloading( void ) const { return reloading; }
+	bool										IsOldDef( const idVarDef *def ) const { return reloading && def->reloadGen != reloadGen; }
+	bool										IsOldType( const idTypeDef *type ) const { return reloading && type->reloadGen != reloadGen; }
+	int											NumReloadedFiles( void ) const { return reloadedFiles.Num(); }
+	void										PrintReloadStats( void ) const;
 
 	const char									*GetFilename( int num );
 	int											GetFilenum( const char *name );

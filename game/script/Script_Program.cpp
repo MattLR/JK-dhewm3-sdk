@@ -149,6 +149,7 @@ idTypeDef::idTypeDef( etype_t etype, idVarDef *edef, const char *ename, int esiz
 	def			= edef;
 	size		= esize;
 	auxType		= aux;
+	reloadGen	= 0;
 
 	parmTypes.SetGranularity( 1 );
 	parmNames.SetGranularity( 1 );
@@ -175,6 +176,7 @@ void idTypeDef::operator=( const idTypeDef& other ) {
 	name		= other.name;
 	size		= other.size;
 	auxType		= other.auxType;
+	reloadGen	= other.reloadGen;
 	parmTypes	= other.parmTypes;
 	parmNames	= other.parmNames;
 	functions	= other.functions;
@@ -574,6 +576,7 @@ idVarDef::idVarDef( idTypeDef *typeptr ) {
 	num			= 0;
 	scope		= NULL;
 	numUsers	= 0;
+	reloadGen	= 0;
 	initialized = idVarDef::uninitialized;
 	memset( &value, 0, sizeof( value ) );
 	name		= NULL;
@@ -1130,6 +1133,7 @@ idTypeDef *idProgram::AllocType( idTypeDef &type ) {
 	idTypeDef *newtype;
 
 	newtype	= new idTypeDef( type );
+	newtype->reloadGen = reloadGen;
 	types.Append( newtype );
 
 	return newtype;
@@ -1144,6 +1148,7 @@ idTypeDef *idProgram::AllocType( etype_t etype, idVarDef *edef, const char *enam
 	idTypeDef *newtype;
 
 	newtype	= new idTypeDef( etype, edef, ename, esize, aux );
+	newtype->reloadGen = reloadGen;
 	types.Append( newtype );
 
 	return newtype;
@@ -1264,6 +1269,7 @@ idVarDef *idProgram::AllocVarDef(idTypeDef *type, const char *name, idVarDef *sc
 	def = new idVarDef( type );
 	def->scope		= scope;
 	def->numUsers	= 1;
+	def->reloadGen	= reloadGen;
 	def->num		= varDefs.Append( def );
 
 	// add the def to the list with defs with this name and set the name pointer
@@ -1914,6 +1920,175 @@ void idProgram::CompileFile( const char *filename ) {
 
 /*
 ================
+idProgram::ReloadFile
+
+Compiles a script file on top of the running program without disturbing anything that exists.
+
+Each object type, function and global variable the file defines is allocated as a new
+version.  Lookups by name find the newest definition (idProgram::FindType() searches
+back to front and idVarDefName::AddDef() puts new defs at the head of the chain), so from
+now on
+
+	- spawning an entity whose "scriptobject" is one of the reloaded object types uses the new code
+	- other files compiled afterwards (including by another ReloadFile()) bind to the new code
+
+while
+
+	- running threads keep executing the old statements, which are never freed or moved
+	- entities that already exist keep their old script object type and memory layout
+	- code that was compiled earlier keeps calling the old versions of functions it references
+
+Global variables are the exception: they are shared state, so a redeclared global keeps its def
+and just gets the (possibly new) initial value, see idCompiler::ParseVariableDef().
+
+If the file doesn't compile, everything it added is removed again and false is returned.
+Reloaded definitions live until the next idProgram::Restart(), after which ReapplyReloads()
+compiles them again.  Nothing is reclaimed between reloads, so each one uses up statements,
+functions and global memory, see PrintReloadStats().
+================
+*/
+bool idProgram::ReloadFile( const char *file ) {
+	char		*src;
+	idStr		ospath;
+	idCompiler	compiler;
+	int			i, n;
+	bool		success;
+
+	if ( reloading ) {
+		return false;
+	}
+
+	if ( !top_statements ) {
+		gameLocal.Printf( "Scripts haven't been loaded yet.\n" );
+		return false;
+	}
+
+	if ( fileSystem->ReadFile( file, ( void ** )&src, NULL ) < 0 ) {
+		gameLocal.Printf( "Couldn't load %s\n", file );
+		return false;
+	}
+
+	const int oldFunctions	= functions.Num();
+	const int oldStatements	= statements.Num();
+	const int oldFiles		= fileList.Num();
+	const int oldVariables	= numVariables;
+
+	reloadGen++;
+	reloading = true;
+	success = true;
+
+	try {
+		// use a full os path for GetFilenum since it calls OSPathToRelativePath to convert filenames from the parser
+		ospath = fileSystem->RelativePathToOSPath( file );
+		filenum = GetFilenum( ospath );
+
+		compiler.CompileFile( src, filename, false );
+
+		// check to make sure all functions prototyped by this file have code
+		for( i = 0; i < varDefs.Num(); i++ ) {
+			idVarDef *def = varDefs[ i ];
+			if ( def->reloadGen != reloadGen ) {
+				continue;
+			}
+			if ( ( def->Type() == ev_function ) && ( ( def->scope->Type() == ev_namespace ) || def->scope->TypeDef()->Inherits( &type_object ) ) ) {
+				if ( !def->value.functionPtr->eventdef && !def->value.functionPtr->firstStatement ) {
+					throw idCompileError( va( "function %s was not defined\n", def->GlobalName() ) );
+				}
+			}
+		}
+	}
+
+	catch( idCompileError &err ) {
+		gameLocal.Printf( "%s", err.error );
+		success = false;
+	}
+
+	fileSystem->FreeFile( src );
+
+	if ( !success ) {
+		// remove everything this reload added.  New defs and types were appended after all old ones.
+		n = varDefs.Num();
+		while( n > 0 && varDefs[ n - 1 ]->reloadGen == reloadGen ) {
+			delete varDefs[ n - 1 ];
+			n--;
+		}
+		varDefs.SetNum( n, false );
+
+		n = types.Num();
+		while( n > 0 && types[ n - 1 ]->reloadGen == reloadGen ) {
+			delete types[ n - 1 ];
+			n--;
+		}
+		types.SetNum( n, false );
+
+		for( i = oldFunctions; i < functions.Num(); i++ ) {
+			functions[ i ].Clear();
+		}
+		functions.SetNum( oldFunctions );
+
+		statements.SetNum( oldStatements );
+		fileList.SetNum( oldFiles, false );
+
+		memset( &variables[ oldVariables ], 0, numVariables - oldVariables );
+		numVariables = oldVariables;
+
+		reloadGen--;
+		reloading = false;
+		filename.Clear();
+
+		gameLocal.Printf( "Reload of '%s' failed, scripts are unchanged.\n", file );
+		return false;
+	}
+
+	reloading = false;
+	filename.Clear();
+
+	// remember the file so that it can be applied again after the program is restarted
+	i = reloadedFiles.FindIndex( idStr( file ) );
+	if ( i >= 0 ) {
+		reloadedFiles.RemoveIndex( i );
+	}
+	reloadedFiles.Append( file );
+
+	gameLocal.Printf( "Reloaded '%s': %d statements, %d functions\n", file, statements.Num() - oldStatements, functions.Num() - oldFunctions );
+
+	return true;
+}
+
+/*
+================
+idProgram::ReapplyReloads
+
+Restart() throws away the reloaded versions, so compile the files that were hot reloaded
+again.  Called when a new map is started.  A file that no longer compiles is dropped.
+================
+*/
+void idProgram::ReapplyReloads( void ) {
+	idStrList files;
+	int i;
+
+	files = reloadedFiles;
+	reloadedFiles.Clear();
+
+	for( i = 0; i < files.Num(); i++ ) {
+		if ( !ReloadFile( files[ i ] ) ) {
+			gameLocal.Warning( "Couldn't reapply reloaded script '%s'", files[ i ].c_str() );
+		}
+	}
+}
+
+/*
+================
+idProgram::PrintReloadStats
+================
+*/
+void idProgram::PrintReloadStats( void ) const {
+	gameLocal.Printf( "script memory in use: %d/%d statements, %d/%d functions, %d/%d bytes of globals (%d reloads since the last restart)\n",
+		statements.Num(), MAX_STATEMENTS, functions.Num(), MAX_FUNCS, numVariables, MAX_GLOBALS, reloadGen );
+}
+
+/*
+================
 idProgram::FreeData
 ================
 */
@@ -1952,6 +2127,11 @@ void idProgram::FreeData( void ) {
 	top_types		= 0;
 	top_defs		= 0;
 	top_files		= 0;
+
+	// a full recompile throws away any hot reloaded scripts
+	reloading		= false;
+	reloadGen		= 0;
+	reloadedFiles.Clear();
 
 	filename = "";
 }
@@ -2158,6 +2338,11 @@ void idProgram::Restart( void ) {
 	statements.SetNum( top_statements );
 	fileList.SetNum( top_files, false );
 	filename.Clear();
+
+	// hot reloaded versions were just freed.  reloadedFiles is kept so
+	// that ReapplyReloads() can compile them again for the next map.
+	reloading = false;
+	reloadGen = 0;
 
 	// reset the variables to their default values
 	numVariables = variableDefaults.Num();

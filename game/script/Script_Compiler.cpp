@@ -2025,6 +2025,7 @@ idCompiler::ParseObjectDef
 */
 void idCompiler::ParseObjectDef( const char *objname ) {
 	idTypeDef	*objtype;
+	idTypeDef	*existingType;
 	idTypeDef	*type;
 	idTypeDef	*parentType;
 	idTypeDef	*fieldtype;
@@ -2039,8 +2040,11 @@ void idCompiler::ParseObjectDef( const char *objname ) {
 		Error( "Objects cannot be defined within functions or other objects" );
 	}
 
-	// make sure it doesn't exist before we create it
-	if ( gameLocal.program.FindType( objname ) != NULL ) {
+	// make sure it doesn't exist before we create it.
+	// When hot reloading, an object type from before the reload may exist: the type
+	// defined here is a new version that shadows it, see idProgram::ReloadFile()
+	existingType = gameLocal.program.FindType( objname );
+	if ( existingType != NULL && !( gameLocal.program.IsOldType( existingType ) && existingType->Type() == ev_object ) ) {
 		Error( "'%s' : redefinition; different basic types", objname );
 	}
 
@@ -2147,10 +2151,24 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 	}
 
 	type = ParseFunction( returnType, name );
-	def = gameLocal.program.GetDef( type, name, scope );
+	if ( gameLocal.program.IsReloading() ) {
+		// a function from before the hot reload is not redeclared by this one, the new
+		// function shadows it, see idProgram::ReloadFile()
+		def = gameLocal.program.GetDef( NULL, name, scope );
+		if ( def && gameLocal.program.IsOldDef( def ) ) {
+			def = NULL;
+		} else if ( def ) {
+			def = gameLocal.program.GetDef( type, name, scope );	// checks for a type mismatch
+		}
+	} else {
+		def = gameLocal.program.GetDef( type, name, scope );
+	}
 	if ( !def ) {
 		def = gameLocal.program.AllocDef( type, name, scope, true );
-		type->def = def;
+		if ( !gameLocal.program.IsOldType( type ) ) {
+			// (a function type from before a reload is shared with the old function, leave its def alone)
+			type->def = def;
+		}
 
 		func = &gameLocal.program.AllocFunction( def );
 		if ( scope->TypeDef()->Inherits( &type_object ) ) {
@@ -2307,13 +2325,22 @@ idCompiler::ParseVariableDef
 void idCompiler::ParseVariableDef( idTypeDef *type, const char *name ) {
 	idVarDef	*def, *def2;
 	bool		negate;
+	bool		reuse = false;
 
 	def = gameLocal.program.GetDef( type, name, scope );
 	if ( def ) {
-		Error( "%s redeclared", name );
+		if ( gameLocal.program.IsOldDef( def ) && def->scope == scope && scope->Type() == ev_namespace ) {
+			// hot reload: a global variable is shared state that other code refers to by def,
+			// so it keeps its storage and value (but takes the initial value written here, if any)
+			reuse = true;
+		} else {
+			Error( "%s redeclared", name );
+		}
 	}
 
-	def = gameLocal.program.AllocDef( type, name, scope, false );
+	if ( !reuse ) {
+		def = gameLocal.program.AllocDef( type, name, scope, false );
+	}
 
 	// check for an initialization
 	if ( CheckToken( "=" ) ) {
@@ -2373,6 +2400,8 @@ void idCompiler::ParseVariableDef( idTypeDef *type, const char *name ) {
 			}
 			NextToken();
 		}
+	} else if ( reuse ) {
+		// keep the current value of the existing global
 	} else if ( type == &type_string ) {
 		// local strings on the stack are initialized in the interpreter
 		if ( scope->Type() != ev_function ) {

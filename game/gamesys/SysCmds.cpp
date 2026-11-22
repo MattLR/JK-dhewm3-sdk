@@ -150,6 +150,37 @@ Cmd_ReloadScript_f
 ===================
 */
 void Cmd_ReloadScript_f( const idCmdArgs &args ) {
+	if ( args.Argc() > 1 ) {
+		// hot reload just the named files and keep the map running, see idProgram::ReloadFile()
+		int i;
+
+		if ( gameLocal.isClient ) {
+			gameLocal.Printf( "reloadScript <file>: scripts only run on the server\n" );
+			return;
+		}
+
+		for ( i = 1; i < args.Argc(); i++ ) {
+			idStr file = args.Argv( i );
+
+			// accept "weapon_pistol", "script/weapon_pistol" and "script/weapon_pistol.script"
+			file.BackSlashesToSlashes();
+			if ( file.Find( '/' ) < 0 ) {
+				file = idStr( "script/" ) + file;
+			}
+			if ( !file.CheckExtension( ".script" ) ) {
+				file.SetFileExtension( ".script" );
+			}
+
+			if ( !gameLocal.program.ReloadFile( file ) ) {
+				// don't go on with files that may depend on this one
+				break;
+			}
+		}
+
+		gameLocal.program.PrintReloadStats();
+		return;
+	}
+
 	// shutdown the map because entities may point to script objects
 	gameLocal.MapShutdown();
 
@@ -2406,7 +2437,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "nextFrame",				idTestModel::TestModelNextFrame_f,	CMD_FL_GAME|CMD_FL_CHEAT,	"shows next animation frame on test model" );
 	cmdSystem->AddCommand( "prevFrame",				idTestModel::TestModelPrevFrame_f,	CMD_FL_GAME|CMD_FL_CHEAT,	"shows previous animation frame on test model" );
 	cmdSystem->AddCommand( "testBlend",				idTestModel::TestBlend_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"tests animation blending" );
-	cmdSystem->AddCommand( "reloadScript",			Cmd_ReloadScript_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"reloads scripts" );
+	cmdSystem->AddCommand( "reloadScript",			Cmd_ReloadScript_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"reloads scripts and restarts the map, or with file names hot reloads just those files for newly spawned entities" );
 	cmdSystem->AddCommand( "script",				Cmd_Script_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"executes a line of script" );
 	cmdSystem->AddCommand( "listCollisionModels",	Cmd_ListCollisionModels_f,	CMD_FL_GAME,				"lists collision models" );
 	cmdSystem->AddCommand( "collisionModelInfo",	Cmd_CollisionModelInfo_f,	CMD_FL_GAME,				"shows collision model info" );

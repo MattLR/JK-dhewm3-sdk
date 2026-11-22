@@ -998,6 +998,9 @@ void idGameLocal::LocalMapRestart( ) {
 
 	program.Restart();
 
+	// Restart() dropped the hot reloaded scripts, compile them again
+	program.ReapplyReloads();
+
 	InitScriptForMap();
 
 	MapPopulate();
