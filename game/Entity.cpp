@@ -2306,7 +2306,7 @@ bool idEntity::GetMasterPosition( idVec3 &masterOrigin, idMat3 &masterAxis ) con
 
 	if ( bindMaster ) {
 
-		//Dynamix vertex model stuff
+		// Dynamix vertex model stuff
 		if (bindMaster->IsType(idAnimatedVertex::Type)) {
 		idAnimatedVertex *vbindMaster = static_cast<idAnimatedVertex *>( bindMaster );
 		dnVertexAnimator	*masterAnimatorVertex;

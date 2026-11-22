@@ -1699,7 +1699,8 @@ idStaticEntity::Event_SetFirstPerson
 */
 void idStaticEntity::Event_SetFirstPerson( void ) {
 	renderEntity.allowSurfaceInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
-	renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
+	renderEntity.noShadow		= true;
+	//renderEntity.suppressShadowInViewID = gameLocal.GetLocalPlayer()->entityNumber+1;
 }
 
 /*
@@ -3352,7 +3353,7 @@ idAnimatedVertex::Event_SetAnimation
 */
 void idAnimatedVertex::Event_SetAnimation( const char *animName ) {
 
-	//Dynamix, this will all get changed later but it works well enough for now
+	// Dynamix, this will all get changed later but it works well enough for now
 	 animator.PlayAnim( animName, 0 );
 
 }
